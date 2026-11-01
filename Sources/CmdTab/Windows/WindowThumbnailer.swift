@@ -50,16 +50,9 @@ final class WindowThumbnailer {
         let pixelSize = ThumbnailGeometry.fittedPixelSize(window: window.frame.size, box: box)
         guard pixelSize.width >= 1, pixelSize.height >= 1 else { return nil }
 
-        let configuration = SCStreamConfiguration()
-        configuration.width = Int(pixelSize.width)
-        configuration.height = Int(pixelSize.height)
-        configuration.showsCursor = false
-        configuration.ignoreShadowsSingleWindow = true
-
-        guard let image = try? await SCScreenshotManager.captureImage(
-            contentFilter: SCContentFilter(desktopIndependentWindow: window),
-            configuration: configuration
-        ), !Task.isCancelled else { return nil }
+        guard let image = await ScreenCapture.captureImage(of: Unchecked(window), pixelSize: pixelSize)?.value,
+              !Task.isCancelled
+        else { return nil }
 
         return NSImage(
             cgImage: image,
@@ -69,9 +62,8 @@ final class WindowThumbnailer {
 
     private func shareableWindow(_ windowID: CGWindowID) async -> SCWindow? {
         if let window = shareableWindows[windowID] { return window }
-        guard let content = try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
-        else { return nil }
-        shareableWindows = Dictionary(content.windows.map { ($0.windowID, $0) }, uniquingKeysWith: { first, _ in first })
+        guard let windows = await ScreenCapture.shareableWindows()?.value else { return nil }
+        shareableWindows = Dictionary(windows.map { ($0.windowID, $0) }, uniquingKeysWith: { first, _ in first })
         return shareableWindows[windowID]
     }
 }
@@ -83,4 +75,31 @@ enum ThumbnailGeometry {
         let scale = min(box.width / window.width, box.height / window.height, 1)
         return CGSize(width: (window.width * scale).rounded(), height: (window.height * scale).rounded())
     }
+}
+
+/// ScreenCaptureKit calls made outside the main actor. Older SDKs don't mark these types `Sendable`,
+/// so results cross back in an `Unchecked` box; they are only ever used on the main actor afterwards.
+private enum ScreenCapture {
+    nonisolated static func shareableWindows() async -> Unchecked<[SCWindow]>? {
+        guard let content = try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
+        else { return nil }
+        return Unchecked(content.windows)
+    }
+
+    nonisolated static func captureImage(of window: Unchecked<SCWindow>, pixelSize: CGSize) async -> Unchecked<CGImage>? {
+        let configuration = SCStreamConfiguration()
+        configuration.width = Int(pixelSize.width)
+        configuration.height = Int(pixelSize.height)
+        configuration.showsCursor = false
+        configuration.ignoreShadowsSingleWindow = true
+        let filter = SCContentFilter(desktopIndependentWindow: window.value)
+        guard let image = try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
+        else { return nil }
+        return Unchecked(image)
+    }
+}
+
+private struct Unchecked<Value>: @unchecked Sendable {
+    let value: Value
+    init(_ value: Value) { self.value = value }
 }
