@@ -86,6 +86,7 @@ final class WindowFilterTests: XCTestCase {
     }
 }
 
+@MainActor
 final class SwitcherItemMetricsTests: XCTestCase {
     func testSizesGrowMonotonically() {
         for style in SwitcherStyle.allCases {
