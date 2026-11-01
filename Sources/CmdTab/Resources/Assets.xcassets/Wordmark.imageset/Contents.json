@@ -1,0 +1,5 @@
+{ "images" : [
+    { "idiom" : "universal", "filename" : "Wordmark-Light.pdf" },
+    { "idiom" : "universal", "filename" : "Wordmark-Dark.pdf", "appearances" : [ { "appearance" : "luminosity", "value" : "dark" } ] } ],
+  "info" : { "author" : "xcode", "version" : 1 },
+  "properties" : { "preserves-vector-representation" : true } }

@@ -1,0 +1,44 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open two windows of …
+        2. Press ⌘⇥ …
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "26.1"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: cmdtab version
+      description: Settings → About.
+      placeholder: "1.0.0 (1)"
+  - type: dropdown
+    id: displays
+    attributes:
+      label: Displays
+      options: ["One display", "Several displays"]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs (optional)
+      description: "Output of `log stream --level debug --predicate 'subsystem == \"dev.yuri.CmdTab\"'` while reproducing."
+      render: text

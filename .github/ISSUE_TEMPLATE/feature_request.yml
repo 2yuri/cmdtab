@@ -1,0 +1,22 @@
+name: Feature idea
+description: Suggest something new
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: cmdtab aims to stay small and to do nothing while the switcher is closed. Ideas that fit that are the easiest to accept.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the situation, not the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+  - type: textarea
+    id: mockup
+    attributes:
+      label: Mockup or screenshot (optional)
