@@ -81,7 +81,16 @@ VoiceOver.
 
 ## Install
 
-There is no signed download yet, so build it from source (it takes a minute):
+1. Download **CmdTab-vX.Y.Z.zip** from the [latest release](https://github.com/2yuri/cmdtab/releases/latest).
+2. Unzip it and drag **CmdTab.app** to **Applications**. It's signed with a Developer ID and notarized
+   by Apple, so it opens without warnings.
+3. On first launch, allow **Accessibility** (System Settings → Privacy & Security → Accessibility).
+   cmdtab takes over ⌘⇥ as soon as that is granted.
+
+Requires macOS 14 or later.
+
+<details>
+<summary>Build from source</summary>
 
 ```sh
 brew install xcodegen
@@ -89,13 +98,10 @@ git clone https://github.com/2yuri/cmdtab.git && cd cmdtab
 make install            # builds a Release app and copies it to /Applications
 ```
 
-Signing uses the team in `project.yml`. To build with your own Apple ID instead, pass your team ID:
+Signing uses the team in `project.yml`. To build with your own Apple ID, pass your team ID:
 `make install DEVELOPMENT_TEAM=YOURTEAMID`.
 
-On first launch cmdtab asks for **Accessibility** (System Settings → Privacy & Security →
-Accessibility). It takes over ⌘⇥ as soon as that is granted.
-
-Requires macOS 14 or later.
+</details>
 
 ## How it works
 

@@ -19,3 +19,6 @@ All notable changes to cmdtab are documented here. The format follows
 - Desktop number on windows from other desktops when showing all desktops.
 - Settings window, menu bar menu and first-launch permission guide.
 - Light and dark themes, Reduce Transparency and VoiceOver labels.
+
+[Unreleased]: https://github.com/2yuri/cmdtab/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/2yuri/cmdtab/releases/tag/v1.0.0
