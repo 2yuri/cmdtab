@@ -14,8 +14,17 @@ published by `.github/workflows/release.yml` when a version tag is pushed.
    git push origin v1.0.1
    ```
 
-3. The workflow sets the version from the tag, builds, signs, notarizes, staples and attaches
-   `CmdTab-v1.0.1.zip` (and its SHA-256) to a new GitHub release.
+3. The workflow sets the version from the tag, builds, signs, notarizes and staples the app, packs
+   it into `CmdTab-v1.0.1.dmg` (signed, notarized and stapled too) and `CmdTab-v1.0.1.zip`, and
+   attaches both with `SHA256SUMS` to a new GitHub release.
+
+To rebuild the files of a release that already exists, run the **Release** workflow by hand
+(Actions → Release → Run workflow) with its tag. It builds from the branch you pick and replaces the
+release's files.
+
+The DMG layout lives in `Resources/dmg/` (`settings.py` for dmgbuild, the background exported from
+the "DMG / Background" frame in the design file). Build one locally with
+`scripts/make-dmg.sh path/to/CmdTab.app build/CmdTab.dmg`.
 
 ## One-time setup: repository secrets
 

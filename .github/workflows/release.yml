@@ -1,9 +1,15 @@
 name: Release
 
 # Push a tag like v1.0.1 to build, sign (Developer ID), notarize and publish a GitHub release.
+# Run it by hand with an existing tag to rebuild and replace that release's files.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to rebuild, like v1.0.0
+        required: true
 
 permissions:
   contents: write
@@ -13,7 +19,7 @@ jobs:
     runs-on: macos-15
     env:
       TEAM_ID: RQTYDUV329
-      VERSION: ${{ github.ref_name }}
+      VERSION: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -87,14 +93,34 @@ jobs:
       - name: Package
         run: |
           ditto -c -k --keepParent build/export/CmdTab.app "build/CmdTab-$VERSION.zip"
-          shasum -a 256 "build/CmdTab-$VERSION.zip" | tee "build/CmdTab-$VERSION.zip.sha256"
+          scripts/make-dmg.sh build/export/CmdTab.app "build/CmdTab-$VERSION.dmg"
+
+      - name: Sign, notarize and staple the DMG
+        env:
+          KEY_P8_BASE64: ${{ secrets.NOTARY_KEY_P8_BASE64 }}
+          KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          DMG="build/CmdTab-$VERSION.dmg"
+          codesign --sign "Developer ID Application" --timestamp "$DMG"
+          echo "$KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          xcrun notarytool submit "$DMG" \
+            --key "$RUNNER_TEMP/notary.p8" --key-id "$KEY_ID" --issuer "$ISSUER_ID" --wait
+          rm "$RUNNER_TEMP/notary.p8"
+          xcrun stapler staple "$DMG"
+          spctl --assess --type open --context context:primary-signature --verbose=2 "$DMG"
+          (cd build && shasum -a 256 "CmdTab-$VERSION.dmg" "CmdTab-$VERSION.zip" | tee SHA256SUMS)
 
       - name: Publish the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$VERSION" "build/CmdTab-$VERSION.zip" "build/CmdTab-$VERSION.zip.sha256" \
-            --title "cmdtab $VERSION" --generate-notes --verify-tag
+          FILES="build/CmdTab-$VERSION.dmg build/CmdTab-$VERSION.zip build/SHA256SUMS"
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            gh release upload "$VERSION" $FILES --clobber
+          else
+            gh release create "$VERSION" $FILES --title "cmdtab $VERSION" --generate-notes --verify-tag
+          fi
 
       - name: Remove the temporary keychain
         if: always()

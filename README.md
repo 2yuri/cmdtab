@@ -81,9 +81,9 @@ VoiceOver.
 
 ## Install
 
-1. Download **CmdTab-vX.Y.Z.zip** from the [latest release](https://github.com/2yuri/cmdtab/releases/latest).
-2. Unzip it and drag **CmdTab.app** to **Applications**. It's signed with a Developer ID and notarized
-   by Apple, so it opens without warnings.
+1. Download **CmdTab-vX.Y.Z.dmg** from the [latest release](https://github.com/2yuri/cmdtab/releases/latest).
+2. Open it and drag **CmdTab** to **Applications**. The app and the disk image are signed with a
+   Developer ID and notarized by Apple, so they open without warnings. A `.zip` of the app is there too.
 3. On first launch, allow **Accessibility** (System Settings → Privacy & Security → Accessibility).
    cmdtab takes over ⌘⇥ as soon as that is granted.
 
