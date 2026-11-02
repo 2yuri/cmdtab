@@ -88,6 +88,56 @@ final class PreferencesTests: XCTestCase {
         XCTAssertEqual(reloaded.bundleIDs(for: .leaveShortcut), ["com.parallels.desktop.console"])
     }
 
+    func testTilingIsOffByDefault() {
+        let preferences = Preferences(defaults: defaults)
+        XCTAssertFalse(preferences.scrollLockEnabled)
+        XCTAssertFalse(preferences.dimsOtherWindows)
+        XCTAssertFalse(preferences.keepsWindowsOffEdges)
+        XCTAssertEqual(preferences.screenPadding, 0, "No padding until Screen padding is on")
+        XCTAssertEqual(preferences.defaultColumnWidth, .twoThirds)
+        XCTAssertEqual(preferences.defaultStackHeight, .half)
+        XCTAssertEqual(preferences.centreMode, .whenOverflowing)
+        XCTAssertEqual(preferences.tilingPadding, 32)
+        XCTAssertEqual(preferences.tilingGap, 12)
+    }
+
+    func testFloatingAppsPersistAndSystemAppsFloatByDefault() {
+        let preferences = Preferences(defaults: defaults)
+        XCTAssertTrue(preferences.floatsSystemApps)
+        preferences.floatingApps = [FloatingApp(bundleID: "com.microsoft.teams2", name: "Microsoft Teams")]
+        XCTAssertEqual(Preferences(defaults: defaults).floatingApps.map(\.bundleID), ["com.microsoft.teams2"])
+    }
+
+    func testDragToStackDefaultsToArrangeModeAndMigratesOff() {
+        XCTAssertEqual(Preferences(defaults: defaults).dragToStack, .inArrangeMode)
+        defaults.set(false, forKey: "stacksByDragging")
+        XCTAssertEqual(Preferences(defaults: defaults).dragToStack, .off, "Someone who turned dragging off keeps it off")
+    }
+
+    func testFloatingRule() {
+        XCTAssertTrue(FloatingRule.isSystemApp(bundlePath: "/System/Library/CoreServices/Finder.app", bundleID: "com.apple.finder"))
+        XCTAssertTrue(FloatingRule.isSystemApp(bundlePath: "/System/Applications/Calculator.app", bundleID: "com.apple.calculator"))
+        XCTAssertFalse(FloatingRule.isSystemApp(bundlePath: "/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app", bundleID: "com.apple.Safari"))
+        XCTAssertFalse(FloatingRule.isSystemApp(bundlePath: "/Applications/Slack.app", bundleID: "com.tinyspeck.slackmacgap"))
+        XCTAssertTrue(FloatingRule.floats(bundleID: "com.tinyspeck.slackmacgap", bundlePath: "/Applications/Slack.app", floatsSystemApps: false, floatingApps: ["com.tinyspeck.slackmacgap"]))
+        XCTAssertFalse(FloatingRule.floats(bundleID: "com.apple.finder", bundlePath: "/System/Library/CoreServices/Finder.app", floatsSystemApps: false, floatingApps: []))
+    }
+
+    func testRememberedSizesMergeAndPersist() {
+        let preferences = Preferences(defaults: defaults)
+        preferences.remember(width: .third, bundleID: "com.apple.Terminal", name: "Terminal")
+        preferences.remember(height: .half, bundleID: "com.apple.Terminal", name: "Terminal")
+        preferences.remember(width: .full, bundleID: "com.apple.Safari", name: "Safari")
+
+        let reloaded = Preferences(defaults: defaults)
+        XCTAssertEqual(reloaded.rememberedSizes.count, 2)
+        XCTAssertEqual(reloaded.rememberedSize(for: "com.apple.Terminal")?.width, .third)
+        XCTAssertEqual(reloaded.rememberedSize(for: "com.apple.Terminal")?.height, .half)
+
+        reloaded.forgetSize(of: "com.apple.Terminal")
+        XCTAssertNil(Preferences(defaults: defaults).rememberedSize(for: "com.apple.Terminal"))
+    }
+
     func testWindowFilterReflectsPreferences() {
         let preferences = Preferences(defaults: defaults)
         preferences.showsHiddenAppWindows = false

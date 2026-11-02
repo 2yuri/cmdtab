@@ -145,7 +145,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          FILES="build/CmdTab-$VERSION.dmg build/CmdTab-$VERSION.zip build/SHA256SUMS build/appcast.xml"
+          # CmdTab.dmg never changes name, so releases/latest/download/CmdTab.dmg is always the newest one.
+          cp "build/CmdTab-$VERSION.dmg" build/CmdTab.dmg
+          FILES="build/CmdTab-$VERSION.dmg build/CmdTab.dmg build/CmdTab-$VERSION.zip build/SHA256SUMS build/appcast.xml"
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" $FILES --clobber
           else

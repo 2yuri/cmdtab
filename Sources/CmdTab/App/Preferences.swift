@@ -54,11 +54,33 @@ final class Preferences {
         static let previewsSelectedWindow = "previewsSelectedWindow"
         /// Replaced by `switcherStyle`; read once to migrate.
         static let legacyShowsWindowPreviews = "showsWindowPreviews"
+        static let scrollLockEnabled = "scrollLockEnabled"
+        static let defaultColumnWidth = "defaultColumnWidth"
+        static let defaultStackHeight = "defaultStackHeight"
+        static let centreMode = "centreMode"
+        static let tilingPadding = "tilingPadding"
+        static let tilingGap = "tilingGap"
+        static let keepsWindowsOffEdges = "keepsWindowsOffEdges"
+        static let animatesScrolling = "animatesScrolling"
+        static let animationSpeed = "animationSpeed"
+        static let wrapsAround = "wrapsAround"
+        static let floatsSystemApps = "floatsSystemApps"
+        static let floatingApps = "floatingApps"
+        static let hidesFloatingApps = "hidesFloatingApps"
+        /// Replaced by `dragToStack`; read once to migrate.
+        static let legacyStacksByDragging = "stacksByDragging"
+        static let dragToStack = "dragToStack"
+        static let arrangePreviews = "arrangePreviews"
+        static let dimsOtherWindows = "dimsOtherWindows"
+        static let dimAmount = "dimAmount"
+        static let rememberedSizes = "rememberedSizes"
 
         static let all = [
             spaceScope, showsMinimizedWindows, showsHiddenAppWindows, switcherSize,
             theme, quickSwitch, replacesNativeSwitcher, showsMenuBarIcon, switcherStyle, groupsWindowsByApp, opensInSearchMode, legacyReleaseAction, exceptions,
             previewsSelectedWindow, legacyShowsWindowPreviews,
+            scrollLockEnabled, defaultColumnWidth, defaultStackHeight, centreMode, tilingPadding, tilingGap,
+            keepsWindowsOffEdges, animatesScrolling, animationSpeed, wrapsAround, floatsSystemApps, floatingApps, hidesFloatingApps, legacyStacksByDragging, dragToStack, arrangePreviews, dimsOtherWindows, dimAmount, rememberedSizes,
         ]
     }
 
@@ -88,6 +110,45 @@ final class Preferences {
     /// One tile per app instead of one per window, like the native switcher.
     var groupsWindowsByApp: Bool { didSet { defaults.set(groupsWindowsByApp, forKey: Key.groupsWindowsByApp) } }
 
+
+    // MARK: Tiling (beta)
+
+    /// Scroll Lock: windows on the current desktop become columns on a strip that scrolls with focus.
+    var scrollLockEnabled: Bool { didSet { defaults.set(scrollLockEnabled, forKey: Key.scrollLockEnabled) } }
+    var defaultColumnWidth: ColumnWidth { didSet { defaults.set(defaultColumnWidth.rawValue, forKey: Key.defaultColumnWidth) } }
+    var defaultStackHeight: StackHeight { didSet { defaults.set(defaultStackHeight.rawValue, forKey: Key.defaultStackHeight) } }
+    /// The strip slides smoothly when focus moves; off, it jumps.
+    var animatesScrolling: Bool { didSet { defaults.set(animatesScrolling, forKey: Key.animatesScrolling) } }
+    /// 0.5 (half as fast) to 2 (twice as fast); scales every slide and scroll.
+    var animationSpeed: Double { didSet { defaults.set(animationSpeed, forKey: Key.animationSpeed) } }
+    /// ⌃⌥← on the first column goes to the last one, and back.
+    var wrapsAround: Bool { didSet { defaults.set(wrapsAround, forKey: Key.wrapsAround) } }
+    var centreMode: CentreMode { didSet { defaults.set(centreMode.rawValue, forKey: Key.centreMode) } }
+    /// Screen padding: every window stays `tilingPadding` away from the screen edges, with or
+    /// without Scroll Lock.
+    var keepsWindowsOffEdges: Bool { didSet { defaults.set(keepsWindowsOffEdges, forKey: Key.keepsWindowsOffEdges) } }
+    /// Space around the windows, where the desktop shows through.
+    var tilingPadding: Double { didSet { defaults.set(tilingPadding, forKey: Key.tilingPadding) } }
+    var tilingGap: Double { didSet { defaults.set(tilingGap, forKey: Key.tilingGap) } }
+    var dimsOtherWindows: Bool { didSet { defaults.set(dimsOtherWindows, forKey: Key.dimsOtherWindows) } }
+    /// 0…1, how dark the layer behind the focused window is.
+    var dimAmount: Double { didSet { defaults.set(dimAmount, forKey: Key.dimAmount) } }
+    /// Finder, System Settings and the other apps that come with macOS stay out of Scroll Lock.
+    var floatsSystemApps: Bool { didSet { defaults.set(floatsSystemApps, forKey: Key.floatsSystemApps) } }
+    /// Apps the user chose to keep out of Scroll Lock.
+    var floatingApps: [FloatingApp] {
+        didSet { defaults.set(try? JSONEncoder().encode(floatingApps), forKey: Key.floatingApps) }
+    }
+    /// Arrange mode's tiles show window snapshots (Screen Recording, only while Arrange mode is on).
+    var arrangePreviews: Bool { didSet { defaults.set(arrangePreviews, forKey: Key.arrangePreviews) } }
+    /// When dropping a window on the top or bottom half of another column stacks them.
+    var dragToStack: DragToStack { didSet { defaults.set(dragToStack.rawValue, forKey: Key.dragToStack) } }
+    /// Going back to a window on the strip hides (⌘H) floating apps, so they don't sit on top of it.
+    var hidesFloatingApps: Bool { didSet { defaults.set(hidesFloatingApps, forKey: Key.hidesFloatingApps) } }
+    var rememberedSizes: [RememberedSize] {
+        didSet { defaults.set(try? JSONEncoder().encode(rememberedSizes), forKey: Key.rememberedSizes) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         spaceScope = Self.enumValue(defaults, Key.spaceScope, default: .currentSpace)
@@ -110,6 +171,54 @@ final class Preferences {
         exceptions = defaults.data(forKey: Key.exceptions)
             .flatMap { try? JSONDecoder().decode([AppException].self, from: $0) } ?? []
         groupsWindowsByApp = Self.boolValue(defaults, Key.groupsWindowsByApp, default: false)
+        scrollLockEnabled = Self.boolValue(defaults, Key.scrollLockEnabled, default: false)
+        defaultColumnWidth = Self.enumValue(defaults, Key.defaultColumnWidth, default: .twoThirds)
+        defaultStackHeight = Self.enumValue(defaults, Key.defaultStackHeight, default: .half)
+        centreMode = Self.enumValue(defaults, Key.centreMode, default: .whenOverflowing)
+        tilingPadding = defaults.object(forKey: Key.tilingPadding) as? Double ?? 32
+        tilingGap = defaults.object(forKey: Key.tilingGap) as? Double ?? 12
+        keepsWindowsOffEdges = Self.boolValue(defaults, Key.keepsWindowsOffEdges, default: false)
+        animatesScrolling = Self.boolValue(defaults, Key.animatesScrolling, default: true)
+        animationSpeed = defaults.object(forKey: Key.animationSpeed) as? Double ?? 1
+        wrapsAround = Self.boolValue(defaults, Key.wrapsAround, default: false)
+        floatsSystemApps = Self.boolValue(defaults, Key.floatsSystemApps, default: true)
+        hidesFloatingApps = Self.boolValue(defaults, Key.hidesFloatingApps, default: true)
+        arrangePreviews = Self.boolValue(defaults, Key.arrangePreviews, default: true)
+        dragToStack = Self.enumValue(
+            defaults,
+            Key.dragToStack,
+            default: defaults.object(forKey: Key.legacyStacksByDragging) as? Bool == false ? .off : .inArrangeMode
+        )
+        floatingApps = defaults.data(forKey: Key.floatingApps)
+            .flatMap { try? JSONDecoder().decode([FloatingApp].self, from: $0) } ?? []
+        dimsOtherWindows = Self.boolValue(defaults, Key.dimsOtherWindows, default: false)
+        dimAmount = defaults.object(forKey: Key.dimAmount) as? Double ?? 0.4
+        rememberedSizes = defaults.data(forKey: Key.rememberedSizes)
+            .flatMap { try? JSONDecoder().decode([RememberedSize].self, from: $0) } ?? []
+    }
+
+    // MARK: Remembered sizes
+
+    /// The padding windows keep from the screen edges; zero while Screen padding is off.
+    var screenPadding: Double { keepsWindowsOffEdges ? tilingPadding : 0 }
+
+    func rememberedSize(for bundleID: String) -> RememberedSize? {
+        rememberedSizes.first { $0.bundleID == bundleID }
+    }
+
+    func remember(width: ColumnWidth? = nil, height: StackHeight? = nil, bundleID: String, name: String) {
+        var size = rememberedSize(for: bundleID) ?? RememberedSize(bundleID: bundleID, name: name)
+        if let width { size.width = width }
+        if let height { size.height = height }
+        if let index = rememberedSizes.firstIndex(where: { $0.bundleID == bundleID }) {
+            rememberedSizes[index] = size
+        } else {
+            rememberedSizes.append(size)
+        }
+    }
+
+    func forgetSize(of bundleID: String) {
+        rememberedSizes.removeAll { $0.bundleID == bundleID }
     }
 
     /// Whether any enabled feature can use Screen Recording.
@@ -149,6 +258,24 @@ final class Preferences {
         exceptions = fresh.exceptions
         previewsSelectedWindow = fresh.previewsSelectedWindow
         groupsWindowsByApp = fresh.groupsWindowsByApp
+        scrollLockEnabled = fresh.scrollLockEnabled
+        defaultColumnWidth = fresh.defaultColumnWidth
+        defaultStackHeight = fresh.defaultStackHeight
+        centreMode = fresh.centreMode
+        tilingPadding = fresh.tilingPadding
+        tilingGap = fresh.tilingGap
+        keepsWindowsOffEdges = fresh.keepsWindowsOffEdges
+        animatesScrolling = fresh.animatesScrolling
+        animationSpeed = fresh.animationSpeed
+        wrapsAround = fresh.wrapsAround
+        floatsSystemApps = fresh.floatsSystemApps
+        hidesFloatingApps = fresh.hidesFloatingApps
+        dragToStack = fresh.dragToStack
+        arrangePreviews = fresh.arrangePreviews
+        floatingApps = fresh.floatingApps
+        dimsOtherWindows = fresh.dimsOtherWindows
+        dimAmount = fresh.dimAmount
+        rememberedSizes = fresh.rememberedSizes
     }
 
     private static func boolValue(_ defaults: UserDefaults, _ key: String, default value: Bool) -> Bool {

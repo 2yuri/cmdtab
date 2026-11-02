@@ -22,7 +22,9 @@ final class HostingWindowController<Content: View> {
         if !window.isVisible {
             center(window)
         }
-        // CmdTab is a menu bar app: it must activate itself for the window to take focus.
+        // CmdTab is a menu bar app: it must activate itself for the window to take focus. Scroll Lock may
+        // have hidden it (like ⌘H) when focus went back to the strip.
+        NSApp.unhide(nil)
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
     }

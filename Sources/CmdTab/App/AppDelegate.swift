@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let screenRecording = ScreenRecordingPermission()
     private let hotKeys = HotKeyCenter()
     private let nativeSwitcher = NativeSwitcherGuard()
+    private lazy var tiling = TilingEngine(preferences: preferences, hotKeys: hotKeys)
     private var updater: Updater?
     private lazy var switcher = SwitcherController(
         preferences: preferences,
@@ -43,7 +44,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         updater = Updater()
-        hotKeys.onAction = { [weak self] action in self?.switcher.handle(action) }
+        hotKeys.onAction = { [weak self] action in
+            if action.isTiling { self?.tiling.handle(action) } else { self?.switcher.handle(action) }
+        }
         statusMenu.refreshVisibility()
         updateSwitcherActivation()
 
@@ -59,6 +62,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.updateSwitcherActivation() }
+        }
+        updateTiling()
+        observeChanges(of: { [preferences, permission] in
+            (permission.isGranted, preferences.scrollLockEnabled, preferences.dimsOtherWindows, preferences.keepsWindowsOffEdges)
+        }) { [weak self] _ in
+            self?.updateTiling()
+        }
+        // Layout settings: lay the strip out again as soon as they change.
+        observeChanges(of: { [preferences] in
+            (preferences.tilingPadding, preferences.tilingGap, preferences.centreMode, preferences.dimAmount,
+             preferences.floatsSystemApps, preferences.floatingApps, preferences.hidesFloatingApps)
+        }) { [weak self] _ in
+            self?.tiling.update()
         }
         observeChanges(of: { [preferences] in preferences.showsMenuBarIcon }) { [weak self] _ in
             self?.statusMenu.refreshVisibility()
@@ -101,6 +117,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             hotKeys.unregister()
             nativeSwitcher.restoreNativeSwitcher()
+        }
+    }
+
+    /// Scroll Lock and dimming need Accessibility; their keys exist only while Scroll Lock is on.
+    private func updateTiling() {
+        let granted = permission.isGranted
+        if granted && preferences.scrollLockEnabled {
+            hotKeys.registerTilingKeys()
+        } else {
+            hotKeys.unregisterTilingKeys()
+        }
+        if granted {
+            tiling.update()
         }
     }
 

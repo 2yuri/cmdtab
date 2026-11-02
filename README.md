@@ -50,6 +50,39 @@ captured only while the switcher is open, kept in memory, and never saved or sen
 Search with **⌘F** while the switcher is open, or turn on **Open in search mode** so the search bar is
 always there: hold ⌘ and tap ⇥ as usual, or let go of ⌘ and type.
 
+## Tiling <img src="https://img.shields.io/badge/BETA-B6F23A?style=flat-square&labelColor=101215" alt="Beta" height="20">
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/features/scroll-lock.png" alt="Scroll Lock"></td>
+    <td width="50%"><img src="docs/images/features/stacking.png" alt="Stack by dragging"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/features/sizes.png" alt="Sizes that stick"></td>
+    <td><img src="docs/images/features/floating.png" alt="Apps that float"></td>
+  </tr>
+</table>
+
+Off by default; turn it on in **Settings → Tiling**.
+
+- **Scroll Lock.** The windows on the current desktop become full-height columns on a strip wider than
+  the screen. Focus moves with ⌃⌥← → (or the switcher, or a click) and the strip slides there, so the
+  columns in between pass by like a scroll. Neighbouring columns peek in at the sides. Hold ⌃⌥ and
+  scroll sideways to slide the strip by hand; it settles on the column you stop at. Optional: wrap
+  around from the last column to the first, animation speed, or no animation.
+- **Stacks.** Drag a window onto the top or bottom half of another column (the half lights up) and
+  they share it, up to three per column. Drag it out, or press ⌃⌥S, to unstack.
+- **Sizes that stick.** Columns are 33, 50, 66 or 100% wide; stacked windows 33, 50 or 100% tall.
+  Cycle with ⌃⌥R and ⌃⌥⇧R or drag an edge; each app's next windows open the same way. Every remembered
+  size is listed, searchable, in Tiling › Remembered Sizes.
+- **Floating apps.** Finder, System Settings and the other apps that come with macOS, plus any app you
+  add, stay out of the strip. Going back to the strip hides them (like ⌘H) until you ⌘⇥ to them.
+- **Screen padding.** Keeps every window, tiled or not, a set distance from the screen edges, measured
+  from the edges so the menu bar counts towards it.
+- **Dim other windows.** A dark layer right below the focused window.
+
+Turning Scroll Lock off puts every window back where it was.
+
 ## Keys
 
 | Keys | Action |
@@ -63,6 +96,17 @@ always there: hold ⌘ and tap ⇥ as usual, or let go of ⌘ and type.
 
 A quick ⌘⇥ tap switches to the previous window without showing the panel.
 
+With Scroll Lock on:
+
+| Keys | Action |
+|---|---|
+| ⌃⌥← / ⌃⌥→ | Focus the column on the left / right |
+| ⌃⌥ + scroll | Slide the strip |
+| ⌃⌥⇧← / ⌃⌥⇧→ | Move the focused column |
+| ⌃⌥R / ⌃⌥⇧R | Cycle the column's width / the window's height in a stack |
+| ⌃⌥S | Stack the window under the column on its left, or take it out |
+| ⌃⌥↑ / ⌃⌥↓ | Focus within a stack |
+
 ## Settings
 
 <p align="center"><img src="docs/images/settings.png" alt="cmdtab Settings window, Switcher pane" width="60%"></p>
@@ -72,6 +116,8 @@ Open them from the ⌘ icon in the menu bar, or by opening cmdtab again.
 - **Switcher:** current desktop or all desktops, grouping by app, minimized and hidden windows,
   style, size, theme, preview of the selected window, quick switch, search mode.
 - **Shortcuts:** what every key does, and a switch to hand ⌘⇥ back to macOS.
+- **Tiling (beta):** Scroll Lock, column widths and stack heights, remembered sizes, floating
+  apps, animation, screen padding, dimming.
 - **Exceptions:** hide apps from the switcher, or leave ⌘⇥ to an app while it is in front
   (virtual machines, remote desktops).
 - **Privacy:** what cmdtab can access, live.
@@ -113,6 +159,7 @@ Signing uses the team in `project.yml`. To build with your own Apple ID, pass yo
 | Window list | One WindowServer query for the on-screen order (most recently used first), filtered by Space, plus one Accessibility call per app for titles. Built on demand, never kept in sync. |
 | Focusing | Brings the exact window forward, unminimizing or unhiding it when needed. |
 | Previews | ScreenCaptureKit snapshots, only while the panel is open, selected window first. |
+| Tiling | Event-driven: Accessibility notifications (window opened, closed, focused, moved) and ⌃⌥ hot keys. Windows are moved through Accessibility; slides are paced by the display, each app on its own queue. Columns out of view are parked just past the right edge of the screen. The scroll tap is switched on only while ⌃⌥ is held. |
 | Updates | [Sparkle](https://sparkle-project.org) fetches `appcast.xml` from the latest GitHub release once a day. An update installs only if its EdDSA signature matches the key in the app and it carries the same Developer ID. No system profile or other data is sent. |
 
 Telling which Space a window is on and focusing one specific window has no public API, so cmdtab uses a

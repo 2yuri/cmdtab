@@ -1,6 +1,7 @@
 import Carbon.HIToolbox
 
-/// Registers ⌘⇥ and ⌘⇧⇥ as Carbon global hot keys, plus the in-switcher keys while it is open.
+/// Registers ⌘⇥ and ⌘⇧⇥ as Carbon global hot keys, plus the in-switcher keys while it is open
+/// and the Scroll Lock keys while it is on.
 ///
 /// Hot keys are matched by the WindowServer, so CmdTab receives nothing — and costs nothing —
 /// for any other keystroke. This is what keeps idle CPU (and battery) usage at zero, unlike an
@@ -15,6 +16,24 @@ final class HotKeyCenter {
         case confirm, cancel
         case search
         case closeWindow, minimizeWindow, quitApp
+        // Scroll Lock (⌃⌥…), registered only while it is on.
+        case focusColumnLeft = 20, focusColumnRight, moveColumnLeft, moveColumnRight
+        case focusStackUp, focusStackDown, cycleWidth, cycleHeight, toggleStack
+        case toggleArrange
+        // Arrange mode keys, typed into its bar (see `ArrangeHUD`).
+        case arrangeLeft = 40, arrangeRight, arrangeToStart, arrangeToEnd, arrangeWidth, arrangeStack, arrangeDone
+        case arrangeHeight, arrangeStackLeft, arrangeStackRight
+        case arrangeWider = 70, arrangeNarrower, arrangeTaller, arrangeShorter, arrangeUnstack
+        case arrangeFocus1 = 51, arrangeFocus2, arrangeFocus3, arrangeFocus4, arrangeFocus5
+        case arrangeFocus6, arrangeFocus7, arrangeFocus8, arrangeFocus9
+
+        /// 0-based column for 1–9 in Arrange mode.
+        var arrangeFocusIndex: Int? {
+            (Action.arrangeFocus1.rawValue...Action.arrangeFocus9.rawValue).contains(rawValue)
+                ? Int(rawValue - Action.arrangeFocus1.rawValue) : nil
+        }
+
+        var isTiling: Bool { rawValue >= Action.focusColumnLeft.rawValue }
     }
 
     var onAction: ((Action) -> Void)?
@@ -23,6 +42,7 @@ final class HotKeyCenter {
     private var eventHandler: EventHandlerRef?
     private var hotKeys: [EventHotKeyRef] = []
     private var sessionHotKeys: [EventHotKeyRef] = []
+    private var tilingHotKeys: [EventHotKeyRef] = []
 
     /// Keys handled while the switcher is open. ⌘ is still held, and ⇧ may be too after ⌘⇧⇥.
     private static let sessionKeys: [(Action, Int)] = [
@@ -32,13 +52,25 @@ final class HotKeyCenter {
         (.closeWindow, kVK_ANSI_W), (.minimizeWindow, kVK_ANSI_M), (.quitApp, kVK_ANSI_Q),
     ]
 
+    /// Scroll Lock keys: ⌃⌥ plus arrows, R and S.
+    private static let tilingKeys: [(Action, Int, Int)] = [
+        (.focusColumnLeft, kVK_LeftArrow, controlKey | optionKey),
+        (.focusColumnRight, kVK_RightArrow, controlKey | optionKey),
+        (.moveColumnLeft, kVK_LeftArrow, controlKey | optionKey | shiftKey),
+        (.moveColumnRight, kVK_RightArrow, controlKey | optionKey | shiftKey),
+        (.focusStackUp, kVK_UpArrow, controlKey | optionKey),
+        (.focusStackDown, kVK_DownArrow, controlKey | optionKey),
+        (.cycleWidth, kVK_ANSI_R, controlKey | optionKey),
+        (.cycleHeight, kVK_ANSI_R, controlKey | optionKey | shiftKey),
+        (.toggleStack, kVK_ANSI_S, controlKey | optionKey),
+        (.toggleArrange, kVK_ANSI_A, controlKey | optionKey),
+    ]
+
+    var isRegistered: Bool { !hotKeys.isEmpty }
+
     func register() {
-        guard eventHandler == nil else { return }
-
-        var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        let context = Unmanaged.passUnretained(self).toOpaque()
-        InstallEventHandler(GetEventDispatcherTarget(), hotKeyHandler, 1, &eventType, context, &eventHandler)
-
+        installHandlerIfNeeded()
+        guard hotKeys.isEmpty else { return }
         registerHotKey(.forward, keyCode: kVK_Tab, modifiers: cmdKey, into: &hotKeys)
         registerHotKey(.backward, keyCode: kVK_Tab, modifiers: cmdKey | shiftKey, into: &hotKeys)
     }
@@ -47,15 +79,39 @@ final class HotKeyCenter {
         unregisterSessionKeys()
         hotKeys.forEach { UnregisterEventHotKey($0) }
         hotKeys.removeAll()
-        if let eventHandler {
-            RemoveEventHandler(eventHandler)
-            self.eventHandler = nil
+        removeHandlerIfUnused()
+    }
+
+    func registerTilingKeys() {
+        installHandlerIfNeeded()
+        guard tilingHotKeys.isEmpty else { return }
+        for (action, keyCode, modifiers) in Self.tilingKeys {
+            registerHotKey(action, keyCode: keyCode, modifiers: modifiers, into: &tilingHotKeys)
         }
+    }
+
+    func unregisterTilingKeys() {
+        tilingHotKeys.forEach { UnregisterEventHotKey($0) }
+        tilingHotKeys.removeAll()
+        removeHandlerIfUnused()
+    }
+
+    private func installHandlerIfNeeded() {
+        guard eventHandler == nil else { return }
+        var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        InstallEventHandler(GetEventDispatcherTarget(), hotKeyHandler, 1, &eventType, context, &eventHandler)
+    }
+
+    private func removeHandlerIfUnused() {
+        guard hotKeys.isEmpty, sessionHotKeys.isEmpty, tilingHotKeys.isEmpty, let eventHandler else { return }
+        RemoveEventHandler(eventHandler)
+        self.eventHandler = nil
     }
 
     /// Claims ⌘+arrows, ⌘↩, ⌘⎋, ⌘F, ⌘W, ⌘M and ⌘Q only for as long as the switcher is open.
     func registerSessionKeys() {
-        guard eventHandler != nil, sessionHotKeys.isEmpty else { return }
+        guard !hotKeys.isEmpty, sessionHotKeys.isEmpty else { return }
         for (action, keyCode) in Self.sessionKeys {
             registerHotKey(action, keyCode: keyCode, modifiers: cmdKey, into: &sessionHotKeys)
             registerHotKey(action, keyCode: keyCode, modifiers: cmdKey | shiftKey, into: &sessionHotKeys)
@@ -65,10 +121,12 @@ final class HotKeyCenter {
     func unregisterSessionKeys() {
         sessionHotKeys.forEach { UnregisterEventHotKey($0) }
         sessionHotKeys.removeAll()
+        removeHandlerIfUnused()
     }
 
     fileprivate func handleHotKey(id: UInt32) {
         guard let action = Action(rawValue: id) else { return }
+        if action.isTiling { Log.activation.debug("tiling key \(String(describing: action), privacy: .public)") }
         onAction?(action)
     }
 
@@ -80,6 +138,9 @@ final class HotKeyCenter {
         )
         if status == noErr, let hotKey {
             refs.append(hotKey)
+        } else {
+            // Usually another app (a launcher or window manager) already owns this shortcut.
+            Log.activation.error("hot key \(String(describing: action), privacy: .public) not registered: \(status)")
         }
     }
 }

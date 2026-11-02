@@ -64,6 +64,8 @@ final class SwitcherController {
         case .closeWindow: act(.closeWindow)
         case .minimizeWindow: act(.minimizeWindow)
         case .quitApp: act(.quitApp)
+        default:
+            break // Tiling keys are handled by the tiling engine.
         }
     }
 
