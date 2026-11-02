@@ -141,7 +141,7 @@ final class Preferences {
     }
     /// Arrange mode's tiles show window snapshots (Screen Recording, only while Arrange mode is on).
     var arrangePreviews: Bool { didSet { defaults.set(arrangePreviews, forKey: Key.arrangePreviews) } }
-    /// When dropping a window on the top or bottom half of another column stacks them.
+    /// When dropping a window on the middle of another column stacks them.
     var dragToStack: DragToStack { didSet { defaults.set(dragToStack.rawValue, forKey: Key.dragToStack) } }
     /// Going back to a window on the strip hides (⌘H) floating apps, so they don't sit on top of it.
     var hidesFloatingApps: Bool { didSet { defaults.set(hidesFloatingApps, forKey: Key.hidesFloatingApps) } }

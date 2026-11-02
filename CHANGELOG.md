@@ -6,6 +6,21 @@ All notable changes to cmdtab are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-11-02
+
+### Fixed
+- ⌘⇥ in a full-screen app now lists the desktop you came from, and full-screen apps show up from
+  the desktop. Choosing a window on another Space switches to it.
+
+## [1.2.0] - 2026-11-02
+
+### Added
+- Tiling (beta), off by default: Scroll Lock strip, column widths and stack heights, sizes remembered
+  per app, stacking by dragging, Arrange mode (⌃⌥A), floating apps, screen padding, gap and dimming.
+- Automatic updates: one check a day against the latest GitHub release, signed with EdDSA. Settings →
+  About turns it off or checks now.
+- Every release also ships `CmdTab.dmg`, so `releases/latest/download/CmdTab.dmg` is always the newest.
+
 ## [1.0.0] - 2026-11-01
 
 ### Added
@@ -20,5 +35,7 @@ All notable changes to cmdtab are documented here. The format follows
 - Settings window, menu bar menu and first-launch permission guide.
 - Light and dark themes, Reduce Transparency and VoiceOver labels.
 
-[Unreleased]: https://github.com/2yuri/cmdtab/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/2yuri/cmdtab/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/2yuri/cmdtab/releases/tag/v1.2.1
+[1.2.0]: https://github.com/2yuri/cmdtab/releases/tag/v1.2.0
 [1.0.0]: https://github.com/2yuri/cmdtab/releases/tag/v1.0.0

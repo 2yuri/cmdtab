@@ -90,7 +90,7 @@ struct TilingPane: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Stack by dragging")
-                    Text("Drop a window on the top or bottom half of another column (or at the screen's edge for the next one) to share it. ⌃⌥S always stacks.")
+                    Text("Drop a window on the middle of another column to share its height, or on a column's side to move it there. At the screen's edge it joins the next column. ⌃⌥S always stacks.")
                         .font(.caption).foregroundStyle(.secondary)
                     Picker("Stack by dragging", selection: $preferences.dragToStack) {
                         ForEach(DragToStack.allCases, id: \.self) { Text($0.label).tag($0) }
@@ -240,7 +240,7 @@ struct TilingPane: View {
             } header: {
                 Text("Keys")
             } footer: {
-                Text("Scroll Lock only arranges windows on the current desktop. Floating panels and dialogs are left alone. Drag a window onto the top or bottom half of another to stack them.")
+                Text("Scroll Lock only arranges windows on the current desktop. Floating panels and dialogs are left alone. Drag a window onto the middle of another column to stack them.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

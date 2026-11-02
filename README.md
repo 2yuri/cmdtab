@@ -61,6 +61,9 @@ always there: hold ⌘ and tap ⇥ as usual, or let go of ⌘ and type.
     <td><img src="docs/images/features/sizes.png" alt="Sizes that stick"></td>
     <td><img src="docs/images/features/floating.png" alt="Apps that float"></td>
   </tr>
+  <tr>
+    <td colspan="2"><img src="docs/images/features/arrange.png" alt="Arrange mode"></td>
+  </tr>
 </table>
 
 Off by default; turn it on in **Settings → Tiling**.
@@ -70,8 +73,12 @@ Off by default; turn it on in **Settings → Tiling**.
   columns in between pass by like a scroll. Neighbouring columns peek in at the sides. Hold ⌃⌥ and
   scroll sideways to slide the strip by hand; it settles on the column you stop at. Optional: wrap
   around from the last column to the first, animation speed, or no animation.
-- **Stacks.** Drag a window onto the top or bottom half of another column (the half lights up) and
-  they share it, up to three per column. Drag it out, or press ⌃⌥S, to unstack.
+- **Stacks.** Drop a window on the middle of another column and they share its height; drop it on a
+  column's side to move it there instead, or at the screen's edge to join the next column. Drag it
+  out, or press ⌃⌥S, to unstack. By default dragging stacks only in Arrange mode (Always / In Arrange
+  mode / Off in Settings).
+- **Arrange mode.** ⌃⌥A shows a numbered bar with a preview of every column, and the keys below
+  rearrange the strip until you press esc. Drag a tile between others to reorder, or onto one to stack.
 - **Sizes that stick.** Columns are 33, 50, 66 or 100% wide; stacked windows 33, 50 or 100% tall.
   Cycle with ⌃⌥R and ⌃⌥⇧R or drag an edge; each app's next windows open the same way. Every remembered
   size is listed, searchable, in Tiling › Remembered Sizes.
@@ -106,10 +113,23 @@ With Scroll Lock on:
 | ⌃⌥R / ⌃⌥⇧R | Cycle the column's width / the window's height in a stack |
 | ⌃⌥S | Stack the window under the column on its left, or take it out |
 | ⌃⌥↑ / ⌃⌥↓ | Focus within a stack |
+| ⌃⌥A | Arrange mode |
+
+In Arrange mode:
+
+| Keys | Action |
+|---|---|
+| ← → / ↑ ↓ | Focus a column / a window in a stack |
+| ⌥← / ⌥→ | Move the column |
+| ⌘← / ⌘→ | Move it to the start / end |
+| ⇧← / ⇧→ | Narrower / wider |
+| ⇧↑ / ⇧↓ | Taller / shorter in a stack |
+| S, then ← or → | Stack with the column on that side (D unstacks, S or esc goes back) |
+| esc | Done |
 
 ## Settings
 
-<p align="center"><img src="docs/images/settings.png" alt="cmdtab Settings window, Switcher pane" width="60%"></p>
+<p align="center"><img src="docs/images/settings.png" alt="cmdtab Settings window, Tiling pane" width="60%"></p>
 
 Open them from the ⌘ icon in the menu bar, or by opening cmdtab again.
 
