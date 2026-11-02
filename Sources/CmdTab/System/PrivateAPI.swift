@@ -33,6 +33,29 @@ enum PrivateAPI {
         return Set(ids)
     }
 
+    /// Each display's current Space and full-screen app Spaces, from Mission Control's layout.
+    static func displaySpaces() -> [DisplaySpaces] {
+        guard let copy = symbols.copyManagedDisplaySpaces,
+              let displays = copy(connection)?.takeRetainedValue() as? [[String: Any]]
+        else { return [] }
+
+        func id(_ space: [String: Any]) -> SpaceID? {
+            ((space["id64"] ?? space["ManagedSpaceID"]) as? NSNumber)?.uint64Value
+        }
+        func isFullScreen(_ space: [String: Any]) -> Bool { (space["type"] as? Int ?? 0) != 0 }
+
+        return displays.compactMap { display in
+            guard let current = display["Current Space"] as? [String: Any], let currentID = id(current) else { return nil }
+            let spaces = display["Spaces"] as? [[String: Any]] ?? []
+            return DisplaySpaces(
+                displayID: display["Display Identifier"] as? String ?? "",
+                current: currentID,
+                currentIsFullScreen: isFullScreen(current),
+                fullScreen: spaces.filter(isFullScreen).compactMap(id)
+            )
+        }
+    }
+
     /// The number macOS shows for each desktop in Mission Control ("Desktop 2"), per display.
     /// Full-screen app Spaces are skipped.
     static func desktopNumbers() -> [SpaceID: Int] {
@@ -78,6 +101,29 @@ enum PrivateAPI {
         return windowID
     }
 
+    /// Accessibility elements for windows on other Spaces, which `kAXWindowsAttribute` leaves out.
+    ///
+    /// An element is addressed by a token of the app's pid and an element id, so this asks the app for
+    /// ids 0, 1, 2… until every requested window is found. Window elements sit among the first few
+    /// hundred ids (a busy browser can reach a few thousand); each lookup takes about 20 µs.
+    static func windowElements(pid: pid_t, windowIDs: Set<CGWindowID>, searching limit: UInt64 = 600) -> [CGWindowID: AXUIElement] {
+        guard !windowIDs.isEmpty, let create = symbols.axCreateWithRemoteToken else { return [:] }
+        var found: [CGWindowID: AXUIElement] = [:]
+        var token = Data(count: 20)
+        token.withUnsafeMutableBytes { bytes in
+            bytes.storeBytes(of: pid, toByteOffset: 0, as: Int32.self)
+            bytes.storeBytes(of: 0x636f636f, toByteOffset: 8, as: Int32.self) // "coco"
+        }
+        for elementID: UInt64 in 0..<limit where found.count < windowIDs.count {
+            token.withUnsafeMutableBytes { $0.storeBytes(of: elementID, toByteOffset: 12, as: UInt64.self) }
+            guard let element = create(token as CFData)?.takeRetainedValue(),
+                  let windowID = windowID(of: element), windowIDs.contains(windowID)
+            else { continue }
+            found[windowID] = element
+        }
+        return found
+    }
+
     /// Makes `windowID` the frontmost, key window of process `pid`, switching Space if needed.
     /// `NSRunningApplication.activate` can only target an app, not one of its windows.
     @discardableResult
@@ -111,6 +157,7 @@ enum PrivateAPI {
     private typealias CopyManagedDisplaySpacesFn = @convention(c) (Int32) -> Unmanaged<CFArray>?
     private typealias CopySpacesForWindowsFn = @convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?
     private typealias SetSymbolicHotKeyEnabledFn = @convention(c) (Int32, Bool) -> CGError
+    private typealias AXCreateWithRemoteTokenFn = @convention(c) (CFData) -> Unmanaged<AXUIElement>?
     private typealias AXGetWindowFn = @convention(c) (AXUIElement, UnsafeMutablePointer<CGWindowID>) -> AXError
     private typealias GetProcessForPIDFn = @convention(c) (pid_t, UnsafeMutablePointer<ProcessSerialNumber>) -> OSStatus
     private typealias SetFrontProcessFn = @convention(c) (UnsafeMutablePointer<ProcessSerialNumber>, CGWindowID, UInt32) -> CGError
@@ -122,6 +169,7 @@ enum PrivateAPI {
         let copySpacesForWindows: CopySpacesForWindowsFn?
         let setSymbolicHotKeyEnabled: SetSymbolicHotKeyEnabledFn?
         let axGetWindow: AXGetWindowFn?
+        let axCreateWithRemoteToken: AXCreateWithRemoteTokenFn?
         let getProcessForPID: GetProcessForPIDFn?
         let setFrontProcess: SetFrontProcessFn?
         let postEventRecord: PostEventRecordFn?
@@ -142,6 +190,7 @@ enum PrivateAPI {
             copySpacesForWindows: resolve(skyLight, "CGSCopySpacesForWindows", as: CopySpacesForWindowsFn.self),
             setSymbolicHotKeyEnabled: resolve(skyLight, "CGSSetSymbolicHotKeyEnabled", as: SetSymbolicHotKeyEnabledFn.self),
             axGetWindow: resolve(appServices, "_AXUIElementGetWindow", as: AXGetWindowFn.self),
+            axCreateWithRemoteToken: resolve(appServices, "_AXUIElementCreateWithRemoteToken", as: AXCreateWithRemoteTokenFn.self),
             getProcessForPID: resolve(appServices, "GetProcessForPID", as: GetProcessForPIDFn.self),
             setFrontProcess: resolve(skyLight, "_SLPSSetFrontProcessWithOptions", as: SetFrontProcessFn.self),
             postEventRecord: resolve(skyLight, "SLPSPostEventRecordTo", as: PostEventRecordFn.self)

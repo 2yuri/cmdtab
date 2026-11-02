@@ -15,9 +15,24 @@ final class WindowProvider {
     private static let minimumSideWithoutAccessibility: CGFloat = 150
 
     private let ownPID = ProcessInfo.processInfo.processIdentifier
+    /// The last desktop (not full-screen app) each display showed, so a full-screen app can list the
+    /// desktop it was opened from. Updated only when the Space changes.
+    private var lastDesktop: [String: PrivateAPI.SpaceID] = [:]
 
     init() {
         AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), Self.accessibilityTimeout)
+        rememberDesktops()
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.rememberDesktops() }
+        }
+    }
+
+    private func rememberDesktops() {
+        lastDesktop.merge(SwitcherSpaces.desktops(of: PrivateAPI.displaySpaces())) { _, new in new }
     }
 
     func windows(options: WindowFilterOptions) -> [SwitcherWindow] {
@@ -35,6 +50,10 @@ final class WindowProvider {
         else { return [] }
 
         let currentSpaces = PrivateAPI.currentSpaceIDs()
+        // "This desktop" also covers full-screen apps and, from one of them, the desktop it came from.
+        let shownSpaces = currentSpaces.isEmpty
+            ? currentSpaces
+            : SwitcherSpaces.visible(displays: PrivateAPI.displaySpaces(), lastDesktop: lastDesktop).union(currentSpaces)
         var onCurrentSpace = Set<CGWindowID>()
         var spacesByWindow: [CGWindowID: Set<PrivateAPI.SpaceID>] = [:]
         let candidates = WindowOrdering
@@ -43,7 +62,7 @@ final class WindowProvider {
                 let spaces = PrivateAPI.spaceIDs(forWindow: entry.windowID)
                 spacesByWindow[entry.windowID] = spaces
                 if !spaces.isDisjoint(with: currentSpaces) { onCurrentSpace.insert(entry.windowID) }
-                return WindowOrdering.isVisible(windowSpaces: spaces, currentSpaces: currentSpaces, scope: scope)
+                return WindowOrdering.isVisible(windowSpaces: spaces, currentSpaces: shownSpaces, scope: scope)
             }
 
         let onScreenOrder = (CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
@@ -57,7 +76,7 @@ final class WindowProvider {
         for entry in candidates where seenPIDs.insert(entry.pid).inserted {
             guard let app = appsByPID[entry.pid] else { continue }
             let appCandidates = candidates.filter { $0.pid == entry.pid }
-            windows += Self.windows(of: app, candidates: appCandidates, onCurrentSpace: onCurrentSpace, scope: scope)
+            windows += Self.windows(of: app, candidates: appCandidates, onCurrentSpace: onCurrentSpace)
                 .filter { WindowOrdering.isIncluded(isMinimized: $0.isMinimized, isAppHidden: $0.isAppHidden, options: options) }
                 .filter {
                     !WindowOrdering.isOrderedOut(
@@ -88,8 +107,7 @@ final class WindowProvider {
     private static func windows(
         of app: NSRunningApplication,
         candidates: [WindowServerEntry],
-        onCurrentSpace: Set<CGWindowID>,
-        scope: SpaceScope
+        onCurrentSpace: Set<CGWindowID>
     ) -> [SwitcherWindow] {
         let appName = app.localizedName ?? ""
         let icon = app.icon
@@ -127,22 +145,31 @@ final class WindowProvider {
             ))
         }
 
-        // Windows on other Spaces are invisible to Accessibility; list them by app name.
-        guard scope == .allSpaces else { return windows }
-        for entry in candidates where !matchedIDs.contains(entry.windowID) {
-            guard !onCurrentSpace.contains(entry.windowID),
-                  entry.size.width >= minimumSideWithoutAccessibility,
-                  entry.size.height >= minimumSideWithoutAccessibility
-            else { continue }
+        // Windows on other Spaces (full-screen apps, the desktop behind one, other desktops) are left out
+        // of kAXWindows. Ask the app for their elements directly; candidates are already limited to the
+        // scope. Without an element a window is still listed, by app name.
+        let offSpace = candidates.filter {
+            !matchedIDs.contains($0.windowID)
+                && !onCurrentSpace.contains($0.windowID)
+                && $0.size.width >= minimumSideWithoutAccessibility
+                && $0.size.height >= minimumSideWithoutAccessibility
+        }
+        let offSpaceElements = PrivateAPI.windowElements(pid: app.processIdentifier, windowIDs: Set(offSpace.map(\.windowID)))
+        for entry in offSpace {
+            let element = offSpaceElements[entry.windowID]
+            let attributes = element?.values(of: [kAXSubroleAttribute, kAXTitleAttribute, kAXMinimizedAttribute]) ?? [:]
+            if element != nil, let subrole = attributes[kAXSubroleAttribute] as? String, !switchableSubroles.contains(subrole) {
+                continue
+            }
             windows.append(SwitcherWindow(
                 windowID: entry.windowID,
                 pid: app.processIdentifier,
                 appKey: appKey,
-                element: nil,
-                title: appName,
+                element: element,
+                title: (attributes[kAXTitleAttribute] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? appName,
                 appName: appName,
                 icon: icon,
-                isMinimized: false,
+                isMinimized: attributes[kAXMinimizedAttribute] as? Bool ?? false,
                 isAppHidden: isHidden,
                 frame: entry.bounds
             ))

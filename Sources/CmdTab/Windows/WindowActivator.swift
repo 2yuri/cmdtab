@@ -24,13 +24,18 @@ enum WindowActivator {
             AXUIElementSetAttributeValue(element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
         }
 
+        let element = window.element
+            ?? PrivateAPI.windowElements(pid: window.pid, windowIDs: [window.windowID], searching: 5000)[window.windowID]
         let focused = PrivateAPI.focusWindow(window.windowID, pid: window.pid)
         var raise = AXError.noValue
-        if let element = window.element {
+        if let element {
+            AXUIElementSetAttributeValue(element, kAXMainAttribute as CFString, kCFBooleanTrue)
             raise = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
         }
+        // Activating the whole app is only a fallback: it brings forward the app's window on the
+        // current Space, which would undo a switch to a full-screen app.
         var activated = false
-        if !focused {
+        if !focused && raise != .success {
             activated = app?.activate() ?? false
         }
         Log.activation.debug("""
