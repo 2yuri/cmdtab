@@ -34,17 +34,20 @@ struct SettingsView: View {
     @Bindable var preferences: Preferences
     let permission: AccessibilityPermission
     let screenRecording: ScreenRecordingPermission
+    let updater: Updater?
     @State private var selection: SettingsPane?
 
     init(
         preferences: Preferences,
         permission: AccessibilityPermission,
         screenRecording: ScreenRecordingPermission,
+        updater: Updater? = nil,
         initialPane: SettingsPane = .general
     ) {
         self.preferences = preferences
         self.permission = permission
         self.screenRecording = screenRecording
+        self.updater = updater
         _selection = State(initialValue: initialPane)
     }
 
@@ -88,8 +91,8 @@ struct SettingsView: View {
         case .switcher: SwitcherPane(preferences: preferences, screenRecording: screenRecording)
         case .shortcuts: ShortcutsPane(preferences: preferences)
         case .exceptions: ExceptionsPane(preferences: preferences)
-        case .privacy: PrivacyPane(permission: permission, screenRecording: screenRecording, preferences: preferences)
-        case .about: AboutPane(preferences: preferences)
+        case .privacy: PrivacyPane(permission: permission, screenRecording: screenRecording, preferences: preferences, updater: updater)
+        case .about: AboutPane(preferences: preferences, updater: updater)
         }
     }
 }

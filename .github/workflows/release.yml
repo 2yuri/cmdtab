@@ -59,6 +59,7 @@ jobs:
           xcodegen generate --quiet
           xcodebuild -project CmdTab.xcodeproj -scheme CmdTab -configuration Release \
             -archivePath build/CmdTab.xcarchive \
+            -clonedSourcePackagesDirPath build/SourcePackages \
             CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Developer ID Application" DEVELOPMENT_TEAM="$TEAM_ID" \
             OTHER_CODE_SIGN_FLAGS="--timestamp" \
             archive -quiet
@@ -111,11 +112,40 @@ jobs:
           spctl --assess --type open --context context:primary-signature --verbose=2 "$DMG"
           (cd build && shasum -a 256 "CmdTab-$VERSION.dmg" "CmdTab-$VERSION.zip" | tee SHA256SUMS)
 
+      - name: Sign the update and write the appcast
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          # The app reads releases/latest/download/appcast.xml, so every release carries its own feed.
+          ZIP="build/CmdTab-$VERSION.zip"
+          SIGNATURE=$(echo "$SPARKLE_ED_PRIVATE_KEY" | build/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update --ed-key-file - "$ZIP")
+          BUILD=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" build/export/CmdTab.app/Contents/Info.plist)
+          SHORT=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" build/export/CmdTab.app/Contents/Info.plist)
+          cat > build/appcast.xml <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+            <channel>
+              <title>CmdTab</title>
+              <item>
+                <title>CmdTab $SHORT</title>
+                <pubDate>$(LC_ALL=C date -u "+%a, %d %b %Y %H:%M:%S +0000")</pubDate>
+                <sparkle:version>$BUILD</sparkle:version>
+                <sparkle:shortVersionString>$SHORT</sparkle:shortVersionString>
+                <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+                <sparkle:releaseNotesLink>https://github.com/${{ github.repository }}/releases/tag/$VERSION</sparkle:releaseNotesLink>
+                <enclosure url="https://github.com/${{ github.repository }}/releases/download/$VERSION/CmdTab-$VERSION.zip" type="application/octet-stream" $SIGNATURE/>
+              </item>
+            </channel>
+          </rss>
+          EOF
+          xmllint --noout build/appcast.xml
+          cat build/appcast.xml
+
       - name: Publish the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          FILES="build/CmdTab-$VERSION.dmg build/CmdTab-$VERSION.zip build/SHA256SUMS"
+          FILES="build/CmdTab-$VERSION.dmg build/CmdTab-$VERSION.zip build/SHA256SUMS build/appcast.xml"
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" $FILES --clobber
           else

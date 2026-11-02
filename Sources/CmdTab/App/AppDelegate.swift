@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let screenRecording = ScreenRecordingPermission()
     private let hotKeys = HotKeyCenter()
     private let nativeSwitcher = NativeSwitcherGuard()
+    private var updater: Updater?
     private lazy var switcher = SwitcherController(
         preferences: preferences,
         screenRecording: screenRecording,
@@ -17,8 +18,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         permission: permission,
         onOpenSettings: { [weak self] in self?.openSettings() }
     )
-    private lazy var settingsWindow: HostingWindowController<SettingsView> = HostingWindowController(title: "CmdTab Settings") { [preferences, permission, screenRecording] in
-        SettingsView(preferences: preferences, permission: permission, screenRecording: screenRecording)
+    private lazy var settingsWindow: HostingWindowController<SettingsView> = HostingWindowController(title: "CmdTab Settings") { [preferences, permission, screenRecording, weak self] in
+        SettingsView(preferences: preferences, permission: permission, screenRecording: screenRecording, updater: self?.updater)
     }
     private lazy var onboardingWindow: HostingWindowController<OnboardingView> = HostingWindowController(
         title: "Welcome to CmdTab"
@@ -41,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        updater = Updater()
         hotKeys.onAction = { [weak self] action in self?.switcher.handle(action) }
         statusMenu.refreshVisibility()
         updateSwitcherActivation()
@@ -140,6 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     preferences: preferences,
                     permission: permission,
                     screenRecording: screenRecording,
+                    updater: preview.pane == .about ? Updater() : nil,
                     initialPane: preview.pane
                 )
             }

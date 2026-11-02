@@ -7,6 +7,11 @@ options:
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.6.4
+
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -26,6 +31,8 @@ targets:
     platform: macOS
     sources:
       - path: Sources/CmdTab
+    dependencies:
+      - package: Sparkle
     info:
       path: Sources/CmdTab/Info.plist
       properties:
@@ -36,6 +43,12 @@ targets:
         LSUIElement: true
         LSApplicationCategoryType: public.app-category.utilities
         NSHumanReadableCopyright: "© 2026 Yuri Miguel"
+        # Auto update (Sparkle): one feed request a day, signed with an EdDSA key, no system profile.
+        SUFeedURL: https://github.com/2yuri/cmdtab/releases/latest/download/appcast.xml
+        SUPublicEDKey: "3zdeUkH940Q/EGmM6jLbjHei2Z5SNV+uNkyJZgy4LqA="
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 86400
+        SUEnableSystemProfiling: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.yuri.CmdTab

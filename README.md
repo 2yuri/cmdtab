@@ -75,6 +75,7 @@ Open them from the ⌘ icon in the menu bar, or by opening cmdtab again.
 - **Exceptions:** hide apps from the switcher, or leave ⌘⇥ to an app while it is in front
   (virtual machines, remote desktops).
 - **Privacy:** what cmdtab can access, live.
+- **About:** version, and automatic updates (on by default, one check a day).
 
 cmdtab follows the system light/dark appearance and Reduce Transparency, and labels its tiles for
 VoiceOver.
@@ -87,7 +88,8 @@ VoiceOver.
 3. On first launch, allow **Accessibility** (System Settings → Privacy & Security → Accessibility).
    cmdtab takes over ⌘⇥ as soon as that is granted.
 
-Requires macOS 14 or later.
+Requires macOS 14 or later. Later versions install themselves: cmdtab checks once a day and asks
+before it installs. Turn that off in Settings → About.
 
 <details>
 <summary>Build from source</summary>
@@ -111,6 +113,7 @@ Signing uses the team in `project.yml`. To build with your own Apple ID, pass yo
 | Window list | One WindowServer query for the on-screen order (most recently used first), filtered by Space, plus one Accessibility call per app for titles. Built on demand, never kept in sync. |
 | Focusing | Brings the exact window forward, unminimizing or unhiding it when needed. |
 | Previews | ScreenCaptureKit snapshots, only while the panel is open, selected window first. |
+| Updates | [Sparkle](https://sparkle-project.org) fetches `appcast.xml` from the latest GitHub release once a day. An update installs only if its EdDSA signature matches the key in the app and it carries the same Developer ID. No system profile or other data is sent. |
 
 Telling which Space a window is on and focusing one specific window has no public API, so cmdtab uses a
 few private SkyLight calls (`Sources/CmdTab/System/PrivateAPI.swift`). They are resolved at runtime: a

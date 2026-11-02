@@ -4,6 +4,7 @@ struct PrivacyPane: View {
     let permission: AccessibilityPermission
     let screenRecording: ScreenRecordingPermission
     let preferences: Preferences
+    var updater: Updater?
 
     var body: some View {
         Form {
@@ -16,7 +17,7 @@ struct PrivacyPane: View {
                 )
                 screenRecordingRow
                 row("Microphone & Camera", status: "Never requested")
-                row("Network", detail: "No analytics, no telemetry, no update checks.", status: "No connections")
+                networkRow
             } header: {
                 Text("CmdTab asks only for what it needs to switch windows. Nothing leaves your Mac.")
                     .font(.body)
@@ -35,6 +36,19 @@ struct PrivacyPane: View {
         .onAppear {
             permission.refresh()
             screenRecording.refresh()
+        }
+    }
+
+    @ViewBuilder
+    private var networkRow: some View {
+        if updater?.automaticallyChecks == true {
+            row(
+                "Network",
+                detail: "One update check a day, to GitHub. No analytics, no telemetry. Turn it off in About.",
+                status: "Update check only"
+            )
+        } else {
+            row("Network", detail: "No analytics, no telemetry, no update checks.", status: "No connections")
         }
     }
 

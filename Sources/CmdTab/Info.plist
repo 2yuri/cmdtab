@@ -26,5 +26,15 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Yuri Miguel</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUEnableSystemProfiling</key>
+	<false/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/2yuri/cmdtab/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>3zdeUkH940Q/EGmM6jLbjHei2Z5SNV+uNkyJZgy4LqA=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>
