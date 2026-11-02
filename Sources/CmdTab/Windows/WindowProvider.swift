@@ -65,6 +65,11 @@ final class WindowProvider {
                 return WindowOrdering.isVisible(windowSpaces: spaces, currentSpaces: shownSpaces, scope: scope)
             }
 
+        WindowElementCache.shared.prune(
+            liveWindowIDs: Set(rawList.compactMap { $0[kCGWindowNumber as String] as? CGWindowID }),
+            livePIDs: Set(appsByPID.keys)
+        )
+
         let onScreenOrder = (CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
             as? [[String: Any]] ?? []).compactMap { $0[kCGWindowNumber as String] as? CGWindowID }
         let zIndex = WindowOrdering.zIndex(onScreenOrder: onScreenOrder, fullOrder: candidates.map(\.windowID))
@@ -76,7 +81,7 @@ final class WindowProvider {
         for entry in candidates where seenPIDs.insert(entry.pid).inserted {
             guard let app = appsByPID[entry.pid] else { continue }
             let appCandidates = candidates.filter { $0.pid == entry.pid }
-            windows += Self.windows(of: app, candidates: appCandidates, onCurrentSpace: onCurrentSpace)
+            windows += Self.windows(of: app, candidates: appCandidates, onCurrentSpace: onCurrentSpace, scope: scope)
                 .filter { WindowOrdering.isIncluded(isMinimized: $0.isMinimized, isAppHidden: $0.isAppHidden, options: options) }
                 .filter {
                     !WindowOrdering.isOrderedOut(
@@ -107,7 +112,8 @@ final class WindowProvider {
     private static func windows(
         of app: NSRunningApplication,
         candidates: [WindowServerEntry],
-        onCurrentSpace: Set<CGWindowID>
+        onCurrentSpace: Set<CGWindowID>,
+        scope: SpaceScope
     ) -> [SwitcherWindow] {
         let appName = app.localizedName ?? ""
         let icon = app.icon
@@ -131,6 +137,7 @@ final class WindowProvider {
 
             let title = (attributes[kAXTitleAttribute] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? appName
             matchedIDs.insert(windowID)
+            WindowElementCache.shared.remember(element, windowID: windowID, pid: app.processIdentifier)
             windows.append(SwitcherWindow(
                 windowID: windowID,
                 pid: app.processIdentifier,
@@ -146,19 +153,29 @@ final class WindowProvider {
         }
 
         // Windows on other Spaces (full-screen apps, the desktop behind one, other desktops) are left out
-        // of kAXWindows. Ask the app for their elements directly; candidates are already limited to the
-        // scope. Without an element a window is still listed, by app name.
+        // of kAXWindows; their elements come from the cache, which asks the app for them. Candidates are
+        // already limited to the scope.
         let offSpace = candidates.filter {
             !matchedIDs.contains($0.windowID)
                 && !onCurrentSpace.contains($0.windowID)
                 && $0.size.width >= minimumSideWithoutAccessibility
                 && $0.size.height >= minimumSideWithoutAccessibility
         }
-        let offSpaceElements = PrivateAPI.windowElements(pid: app.processIdentifier, windowIDs: Set(offSpace.map(\.windowID)))
+        let offSpaceElements = WindowElementCache.shared.elements(
+            pid: app.processIdentifier,
+            windowIDs: Set(offSpace.map(\.windowID)),
+            budget: WindowElementCache.listBudget
+        )
         for entry in offSpace {
             let element = offSpaceElements[entry.windowID]
             let attributes = element?.values(of: [kAXSubroleAttribute, kAXTitleAttribute, kAXMinimizedAttribute]) ?? [:]
-            if element != nil, let subrole = attributes[kAXSubroleAttribute] as? String, !switchableSubroles.contains(subrole) {
+            if element != nil {
+                // Apps keep invisible helper windows next to full-screen ones; only real windows count.
+                guard let subrole = attributes[kAXSubroleAttribute] as? String, switchableSubroles.contains(subrole)
+                else { continue }
+            } else if scope != .allSpaces {
+                // Not found yet (a background scan carries on): without it there is no telling a helper
+                // from a window, and choosing it couldn't switch there anyway.
                 continue
             }
             windows.append(SwitcherWindow(

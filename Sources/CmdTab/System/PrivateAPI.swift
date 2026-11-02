@@ -101,27 +101,37 @@ enum PrivateAPI {
         return windowID
     }
 
-    /// Accessibility elements for windows on other Spaces, which `kAXWindowsAttribute` leaves out.
-    ///
-    /// An element is addressed by a token of the app's pid and an element id, so this asks the app for
-    /// ids 0, 1, 2… until every requested window is found. Window elements sit among the first few
-    /// hundred ids (a busy browser can reach a few thousand); each lookup takes about 20 µs.
-    static func windowElements(pid: pid_t, windowIDs: Set<CGWindowID>, searching limit: UInt64 = 600) -> [CGWindowID: AXUIElement] {
-        guard !windowIDs.isEmpty, let create = symbols.axCreateWithRemoteToken else { return [:] }
+    /// Window elements among the app's Accessibility element ids in `range`, including windows on
+    /// other Spaces, which `kAXWindowsAttribute` leaves out. An element is addressed by a token of the
+    /// app's pid and an element id; each lookup takes about 12 µs. Stops early once every window in
+    /// `wanted` is found. Returns what it found and where it stopped.
+    static func windowElements(
+        pid: pid_t,
+        in range: Range<UInt64>,
+        wanted: Set<CGWindowID>
+    ) -> (elements: [CGWindowID: AXUIElement], scannedTo: UInt64) {
+        guard let create = symbols.axCreateWithRemoteToken else { return ([:], range.upperBound) }
         var found: [CGWindowID: AXUIElement] = [:]
         var token = Data(count: 20)
         token.withUnsafeMutableBytes { bytes in
             bytes.storeBytes(of: pid, toByteOffset: 0, as: Int32.self)
             bytes.storeBytes(of: 0x636f636f, toByteOffset: 8, as: Int32.self) // "coco"
         }
-        for elementID: UInt64 in 0..<limit where found.count < windowIDs.count {
+        var elementID = range.lowerBound
+        while elementID < range.upperBound {
+            defer { elementID += 1 }
             token.withUnsafeMutableBytes { $0.storeBytes(of: elementID, toByteOffset: 12, as: UInt64.self) }
+            // Every element inside a window reports that window, so keep only the window itself.
             guard let element = create(token as CFData)?.takeRetainedValue(),
-                  let windowID = windowID(of: element), windowIDs.contains(windowID)
+                  let windowID = windowID(of: element), found[windowID] == nil,
+                  element.value(of: kAXRoleAttribute) as String? == kAXWindowRole
             else { continue }
             found[windowID] = element
+            if !wanted.isEmpty, wanted.isSubset(of: found.keys) {
+                return (found, elementID + 1)
+            }
         }
-        return found
+        return (found, range.upperBound)
     }
 
     /// Makes `windowID` the frontmost, key window of process `pid`, switching Space if needed.

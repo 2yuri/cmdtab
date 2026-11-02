@@ -25,7 +25,9 @@ enum WindowActivator {
         }
 
         let element = window.element
-            ?? PrivateAPI.windowElements(pid: window.pid, windowIDs: [window.windowID], searching: 5000)[window.windowID]
+            ?? WindowElementCache.shared.elements(
+                pid: window.pid, windowIDs: [window.windowID], budget: WindowElementCache.commitBudget
+            )[window.windowID]
         let focused = PrivateAPI.focusWindow(window.windowID, pid: window.pid)
         var raise = AXError.noValue
         if let element {
