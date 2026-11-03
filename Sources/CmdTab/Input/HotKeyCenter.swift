@@ -50,6 +50,8 @@ final class HotKeyCenter {
         (.left, kVK_LeftArrow), (.right, kVK_RightArrow), (.up, kVK_UpArrow), (.down, kVK_DownArrow),
         (.confirm, kVK_Return), (.confirm, kVK_ANSI_KeypadEnter), (.cancel, kVK_Escape),
         (.search, kVK_ANSI_F),
+        // ⌘` goes back one, like ⌘⇧⇥: the key left of 1 (or under ⎋ on ISO keyboards).
+        (.backward, kVK_ANSI_Grave), (.backward, kVK_ISO_Section),
         (.closeWindow, kVK_ANSI_W), (.minimizeWindow, kVK_ANSI_M), (.quitApp, kVK_ANSI_Q),
     ]
 
@@ -111,7 +113,7 @@ final class HotKeyCenter {
         self.eventHandler = nil
     }
 
-    /// Claims ⌘+arrows, ⌘↩, ⌘⎋, ⌘F, ⌘W, ⌘M and ⌘Q only for as long as the switcher is open.
+    /// Claims ⌘+arrows, ⌘↩, ⌘⎋, ⌘`, ⌘F, ⌘W, ⌘M and ⌘Q only for as long as the switcher is open.
     func registerSessionKeys() {
         guard !hotKeys.isEmpty, sessionHotKeys.isEmpty else { return }
         for (action, keyCode) in Self.sessionKeys {

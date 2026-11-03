@@ -69,12 +69,23 @@ final class IslandController {
         switch choice {
         case .all: return NSScreen.screens
         case .main: return NSScreen.screens.first.map { [$0] } ?? []
+        case .dock: return [dockScreen(NSScreen.screens) ?? NSScreen.screens.first].compactMap { $0 }
         case .builtIn:
             let builtIn = NSScreen.screens.first { screen in
                 screen.displayID.map { CGDisplayIsBuiltin($0) != 0 } ?? false
             }
             return [builtIn ?? NSScreen.screens.first].compactMap { $0 }
         }
+    }
+
+    /// The screen the Dock is on: the one whose usable area gives up room at the bottom or a side.
+    /// A hidden Dock still keeps a few points there, so this finds it either way.
+    static func dockScreen(_ screens: [NSScreen]) -> NSScreen? {
+        screens.first { dockEdge(frame: $0.frame, visible: $0.visibleFrame) }
+    }
+
+    nonisolated static func dockEdge(frame: CGRect, visible: CGRect) -> Bool {
+        visible.minY > frame.minY || visible.minX > frame.minX || visible.maxX < frame.maxX
     }
 
     static func notchRect(of screen: NSScreen) -> CGRect? {
@@ -99,6 +110,12 @@ extension NSScreen {
 
     var displayID: CGDirectDisplayID? {
         deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
+    }
+
+    /// The display's UUID, as Mission Control names it.
+    var uuidString: String? {
+        guard let displayID, let uuid = CGDisplayCreateUUIDFromDisplayID(displayID)?.takeRetainedValue() else { return nil }
+        return CFUUIDCreateString(nil, uuid) as String?
     }
 }
 

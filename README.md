@@ -171,6 +171,7 @@ for the Downloads and Desktop folders, each only when you turn that module on.
 | Keys | Action |
 |---|---|
 | ⌘⇥ / ⌘⇧⇥ | Open the switcher, next / previous window |
+| ⌘` | Back one, while the switcher is open |
 | ← → ↑ ↓ | Move the selection (↑↓ move by row) |
 | Release ⌘ or ↩ | Switch to the selected window |
 | esc | Close without switching |

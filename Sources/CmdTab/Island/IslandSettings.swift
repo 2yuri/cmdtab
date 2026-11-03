@@ -2,6 +2,8 @@ import Foundation
 
 /// Which screens get an island.
 enum IslandScreen: String, CaseIterable {
+    /// The display the Dock is on; it follows the Dock when it moves.
+    case dock
     /// The built-in display (it has the notch), or the main display when the lid is closed.
     case builtIn
     case main
@@ -9,6 +11,7 @@ enum IslandScreen: String, CaseIterable {
 
     var label: String {
         switch self {
+        case .dock: "Display with the Dock"
         case .builtIn: "Built-in display"
         case .main: "Main display"
         case .all: "All"

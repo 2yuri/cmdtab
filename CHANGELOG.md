@@ -6,6 +6,16 @@ All notable changes to cmdtab are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-03
+
+### Changed
+- The island shows on the display with the Dock by default (Settings → Island → Show on).
+- ⌘` goes back one while the switcher is open, like ⌘⇧⇥.
+
+### Fixed
+- Scroll Lock with three or more displays: windows parked out of view no longer hang over the
+  display next door, which made them jump between displays and froze the Mac.
+
 ## [1.3.0] - 2026-11-03
 
 ### Added
@@ -62,7 +72,8 @@ All notable changes to cmdtab are documented here. The format follows
 - Settings window, menu bar menu and first-launch permission guide.
 - Light and dark themes, Reduce Transparency and VoiceOver labels.
 
-[Unreleased]: https://github.com/2yuri/cmdtab/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/2yuri/cmdtab/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/2yuri/cmdtab/releases/tag/v1.3.1
 [1.3.0]: https://github.com/2yuri/cmdtab/releases/tag/v1.3.0
 [1.2.1]: https://github.com/2yuri/cmdtab/releases/tag/v1.2.1
 [1.2.0]: https://github.com/2yuri/cmdtab/releases/tag/v1.2.0

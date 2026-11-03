@@ -248,7 +248,7 @@ final class Preferences {
         islandEnabled = Self.boolValue(defaults, Key.islandEnabled, default: false)
         islandOpensOnHover = Self.boolValue(defaults, Key.islandOpensOnHover, default: true)
         islandShowsLimit = Self.boolValue(defaults, Key.islandShowsLimit, default: true)
-        islandScreen = Self.enumValue(defaults, Key.islandScreen, default: .builtIn)
+        islandScreen = Self.enumValue(defaults, Key.islandScreen, default: .dock)
         islandModules = IslandModuleSetting.normalized(
             defaults.data(forKey: Key.islandModules)
                 .flatMap { try? JSONDecoder().decode([IslandModuleSetting].self, from: $0) } ?? []

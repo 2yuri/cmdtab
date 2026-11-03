@@ -155,4 +155,51 @@ final class ScrollLockLayoutTests: XCTestCase {
         let fraction = ScrollLockLayout<Int>.fraction(ofWidth: 590, usableWidth: 1200, gap: 10)
         XCTAssertEqual(ColumnWidth.nearest(to: fraction), .half)
     }
+
+    // MARK: Several displays
+
+    func testFindsTheDisplaysBesideAScreen() {
+        let middle = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let left = CGRect(x: -1920, y: -100, width: 1920, height: 1080)
+        let right = CGRect(x: 1512, y: 0, width: 2560, height: 1440)
+        let sides = ScrollLockLayout<Int>.Neighbours.of(middle, among: [left, middle, right])
+        XCTAssertEqual(sides, .init(left: true, right: true, below: false))
+        XCTAssertEqual(ScrollLockLayout<Int>.Neighbours.of(middle, among: [middle]), .none)
+        let below = CGRect(x: 200, y: 982, width: 1920, height: 1080)
+        XCTAssertTrue(ScrollLockLayout<Int>.Neighbours.of(middle, among: [below]).below)
+    }
+
+    /// The middle of three displays: nothing may hang over the displays on either side, or macOS
+    /// moves it there and the strips fight over it.
+    func testBetweenTwoDisplaysNothingHangsOverThem() {
+        let screen = CGRect(x: 0, y: 0, width: 1200, height: 800)
+        var strip = ScrollLockStrip<Int>()
+        for index in 0..<6 { strip.append(index, width: .half) }
+        strip.focus(3)
+        let layout = ScrollLockLayout<Int>(options: .init(padding: 0, gap: 10, centreMode: .always))
+        let sides = ScrollLockLayout<Int>.Neighbours(left: true, right: true, below: false)
+        for scroll in stride(from: CGFloat(0), through: 2400, by: 50) {
+            let result = layout.layout(
+                strip, in: screen, previousScroll: 0, parkingBounds: screen,
+                fixedScroll: scroll, parksBeyondScreen: true, neighbours: sides
+            )
+            for (window, frame) in result.frames {
+                XCTAssertTrue(frame.midX >= screen.minX && frame.midX <= screen.maxX || frame.minY >= screen.maxY - 1,
+                              "Window \(window) at scroll \(scroll) sits mostly on another display: \(frame)")
+                XCTAssertNil(result.slideFrames[window], "No slide out over the display on the left")
+            }
+        }
+    }
+
+    func testWithADisplayOnTheRightParksOnTheLeftOrBelow() {
+        let screen = CGRect(x: 0, y: 0, width: 1200, height: 800)
+        var strip = ScrollLockStrip<Int>()
+        for index in 0..<4 { strip.append(index, width: .full) }
+        strip.focus(0)
+        let layout = ScrollLockLayout<Int>(options: .init(padding: 0, gap: 10, centreMode: .always))
+        let result = layout.layout(strip, in: screen, previousScroll: 0, parkingBounds: screen,
+                                   parksBeyondScreen: true, neighbours: .init(right: true))
+        XCTAssertEqual(result.frames[2]?.minY, 799, "Parked below the screen")
+        XCTAssertEqual(result.frames[0]?.minX, 0)
+    }
 }

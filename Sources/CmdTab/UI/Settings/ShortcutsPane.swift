@@ -15,6 +15,7 @@ struct ShortcutsPane: View {
             }
 
             Section("While the switcher is open") {
+                LabeledContent("Back one") { KeyCaps(keys: ["⌘", "`"]) }
                 LabeledContent("Move selection") { KeyCaps(keys: ["←", "→", "↑", "↓"]) }
                 LabeledContent {
                     KeyCaps(keys: ["↩"])

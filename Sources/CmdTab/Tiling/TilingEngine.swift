@@ -431,8 +431,10 @@ final class TilingEngine {
         guard isRunning else { return }
         let focusedID = focusedWindowID()
         let focusedFrame = focusedID.flatMap { id in tiled[id]?.frame } ?? focusedElement()?.frame
-        guard let screen = focusedFrame.flatMap(ScreenGeometry.screen(containing:)) ?? NSScreen.main,
-              let space = currentSpace(for: focusedID)
+        // The desktop's own display first: a parked window's middle is past its screen's edge,
+        // maybe on the display next to it.
+        guard let space = currentSpace(for: focusedID),
+              let screen = Self.screen(showing: space) ?? focusedFrame.flatMap(ScreenGeometry.screen(containing:)) ?? NSScreen.main
         else { return }
 
         let screenRect = ScreenGeometry.accessibilityRect(fromAppKit: screen.frame)
@@ -615,7 +617,8 @@ final class TilingEngine {
             followsFocus: !manuallyScrolled.contains(space),
             parkingBounds: parking,
             // Neighbours of a full-width column still peek in through the padding.
-            parksBeyondScreen: true
+            parksBeyondScreen: true,
+            neighbours: Self.neighbours(of: parking)
         )
         // Where the strip is on screen right now: mid-scroll if a scroll is running.
         let shownScroll = displayedScroll.flatMap { $0.space == space && animator.isAnimating ? $0.value : nil }
@@ -717,6 +720,7 @@ final class TilingEngine {
         for id in strip.windows {
             if let window = tiled[id] { windows[id] = (window.pid, window.element) }
         }
+        let neighbours = Self.neighbours(of: parking)
         let end = result.scroll
         let finalPositions = result.frames.mapValues(\.origin)
         ignoreMovesUntil = .distantFuture
@@ -730,7 +734,7 @@ final class TilingEngine {
             self?.displayedScroll = (space, scroll)
             return layout.layout(
                 strip, in: usable, previousScroll: 0, parkingBounds: parking,
-                fixedScroll: scroll, parksBeyondScreen: true
+                fixedScroll: scroll, parksBeyondScreen: true, neighbours: neighbours
             ).frames.mapValues(\.origin)
         }
     }
@@ -1305,6 +1309,17 @@ final class TilingEngine {
     }
 
     /// The desktop the focused window is on, or the one shown on the main display.
+    /// The display showing `space`, when each display has its own desktops.
+    private static func screen(showing space: PrivateAPI.SpaceID) -> NSScreen? {
+        guard let display = PrivateAPI.displaySpaces().first(where: { $0.current == space }) else { return nil }
+        return NSScreen.screens.first { $0.uuidString == display.displayID }
+    }
+
+    /// Sides of `screen` (Accessibility coordinates) with another display past them.
+    private static func neighbours(of screen: CGRect) -> ScrollLockLayout<CGWindowID>.Neighbours {
+        .of(screen, among: NSScreen.screens.map { ScreenGeometry.accessibilityRect(fromAppKit: $0.frame) })
+    }
+
     private func currentSpace(for focusedID: CGWindowID?) -> PrivateAPI.SpaceID? {
         let current = PrivateAPI.currentSpaceIDs()
         if let focusedID, let space = PrivateAPI.spaceIDs(forWindow: focusedID).first(where: current.contains) {

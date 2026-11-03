@@ -491,3 +491,14 @@ final class WeatherAheadTests: XCTestCase {
         XCTAssertEqual(report.days.map(\.high), [27, 25])
     }
 }
+
+final class IslandDockScreenTests: XCTestCase {
+    func testFindsTheDockEdge() {
+        let frame = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        XCTAssertFalse(IslandController.dockEdge(frame: frame, visible: CGRect(x: 0, y: 0, width: 1512, height: 949)), "Only the menu bar")
+        XCTAssertTrue(IslandController.dockEdge(frame: frame, visible: CGRect(x: 0, y: 80, width: 1512, height: 869)), "Dock at the bottom")
+        XCTAssertTrue(IslandController.dockEdge(frame: frame, visible: CGRect(x: 0, y: 4, width: 1512, height: 945)), "Hidden Dock")
+        XCTAssertTrue(IslandController.dockEdge(frame: frame, visible: CGRect(x: 70, y: 0, width: 1442, height: 949)), "Dock on the left")
+        XCTAssertTrue(IslandController.dockEdge(frame: frame, visible: CGRect(x: 0, y: 0, width: 1442, height: 949)), "Dock on the right")
+    }
+}

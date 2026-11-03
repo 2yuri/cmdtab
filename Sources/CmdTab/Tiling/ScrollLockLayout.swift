@@ -33,6 +33,40 @@ struct ScrollLockLayout<Window: Hashable> {
         var slideFrames: [Window: CGRect] = [:]
     }
 
+    /// The sides of the screen with another display past them. A window hanging mostly over another
+    /// display moves to that display (and its desktop), so columns are never parked or left peeking there.
+    struct Neighbours: Equatable {
+        var left = false
+        var right = false
+        var below = false
+
+        static var none: Neighbours { Neighbours() }
+
+        /// Which sides of `screen` touch one of `others` (all in the same coordinates, y growing downwards).
+        static func of(_ screen: CGRect, among others: [CGRect]) -> Neighbours {
+            func overlaps(_ a: ClosedRange<CGFloat>, _ b: ClosedRange<CGFloat>) -> Bool {
+                a.lowerBound < b.upperBound && b.lowerBound < a.upperBound
+            }
+            var sides = Neighbours()
+            for other in others where other != screen {
+                let rows = overlaps(screen.minY...screen.maxY, other.minY...other.maxY)
+                let columns = overlaps(screen.minX...screen.maxX, other.minX...other.maxX)
+                if rows, other.minX >= screen.maxX - 1, other.minX < screen.maxX + screen.width { sides.right = true }
+                if rows, other.maxX <= screen.minX + 1, other.maxX > screen.minX - screen.width { sides.left = true }
+                if columns, other.minY >= screen.maxY - 1, other.minY < screen.maxY + screen.height { sides.below = true }
+            }
+            return sides
+        }
+    }
+
+    /// Where a column out of view waits: past an edge with no display beyond it, the right edge first.
+    static func parkedOrigin(width: CGFloat, parking: CGRect, usable: CGRect, neighbours: Neighbours) -> CGPoint {
+        if !neighbours.right { return CGPoint(x: parking.maxX - parkedSliver, y: usable.minY) }
+        if !neighbours.below { return CGPoint(x: usable.minX, y: parking.maxY - parkedSliver) }
+        if !neighbours.left { return CGPoint(x: parking.minX - width + parkedSliver, y: usable.minY) }
+        return CGPoint(x: parking.maxX - parkedSliver, y: usable.minY)
+    }
+
     /// How much of a window stays on screen when its column is scrolled out of view.
     /// macOS keeps every window at least partly visible, so park it at the right edge.
     static var parkedSliver: CGFloat { 1 }
@@ -48,6 +82,7 @@ struct ScrollLockLayout<Window: Hashable> {
     ///     area, so columns glide through the padding during a scroll instead of popping out.
     ///   - parkingBounds: the whole screen. Columns out of view are parked just past its edges, not the
     ///     usable area's, or they would show in the padding on top of their neighbours.
+    ///   - neighbours: sides of the screen with another display past them.
     func layout(
         _ strip: ScrollLockStrip<Window>,
         in screen: CGRect,
@@ -55,7 +90,8 @@ struct ScrollLockLayout<Window: Hashable> {
         followsFocus: Bool = true,
         parkingBounds: CGRect? = nil,
         fixedScroll: CGFloat? = nil,
-        parksBeyondScreen: Bool = false
+        parksBeyondScreen: Bool = false,
+        neighbours: Neighbours = .none
     ) -> Result {
         let parking = parkingBounds ?? screen
         let usable = screen.insetBy(dx: options.padding, dy: options.padding)
@@ -89,15 +125,20 @@ struct ScrollLockLayout<Window: Hashable> {
             // Fully off screen: park it at the edge, mostly hidden.
             // Out of the usable area: park just past the screen's right edge, mostly hidden. macOS keeps
             // about 40 points of a window on screen past the left edge, but only one past the right.
+            // Next to another display, a column mostly past that edge is parked too.
             var slideX: CGFloat?
+            var columnY = usable.minY
             let bounds = parksBeyondScreen ? parking : usable
-            if columnX >= bounds.maxX {
-                columnX = parking.maxX - Self.parkedSliver
-            } else if columnX + width <= bounds.minX {
-                slideX = min(columnX, parking.minX - width)
-                columnX = parking.maxX - Self.parkedSliver
+            let middle = columnX + width / 2
+            let pastRight = columnX >= bounds.maxX || (neighbours.right && middle > parking.maxX)
+            let pastLeft = columnX + width <= bounds.minX || (neighbours.left && middle < parking.minX)
+            if pastRight || pastLeft {
+                if pastLeft && !neighbours.left { slideX = min(columnX, parking.minX - width) }
+                let parked = Self.parkedOrigin(width: width, parking: parking, usable: usable, neighbours: neighbours)
+                columnX = parked.x
+                columnY = parked.y
             }
-            let columnFrame = CGRect(x: columnX, y: usable.minY, width: width, height: usable.height)
+            let columnFrame = CGRect(x: columnX, y: columnY, width: width, height: usable.height)
             columnFrames.append(columnFrame)
 
             if column.isTabbed {
@@ -106,7 +147,7 @@ struct ScrollLockLayout<Window: Hashable> {
                 let steps = min(order.count - 1, Self.maximumPeeks)
                 for (depth, window) in order.enumerated() {
                     let inset = min(CGFloat(max(steps - depth, 0)) * options.tabPeek, width / 2)
-                    frames[window] = Self.pixelAligned(CGRect(x: columnX, y: usable.minY, width: width - inset, height: usable.height))
+                    frames[window] = Self.pixelAligned(CGRect(x: columnX, y: columnY, width: width - inset, height: usable.height))
                     if let slideX {
                         slideFrames[window] = Self.pixelAligned(CGRect(x: slideX, y: usable.minY, width: width - inset, height: usable.height))
                     }
@@ -114,7 +155,7 @@ struct ScrollLockLayout<Window: Hashable> {
                 continue
             }
 
-            var y = usable.minY
+            var y = columnY
             let fractions = strip.heightFractions(of: column)
             for (window, fraction) in zip(column.windows, fractions) {
                 let height = (usable.height + options.gap) * fraction - options.gap
