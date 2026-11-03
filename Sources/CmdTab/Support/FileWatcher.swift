@@ -5,7 +5,8 @@ import Foundation
 /// `latency`. FSEvents does the watching, so nothing runs while the files are quiet.
 @MainActor
 final class FileWatcher {
-    private var stream: FSEventStreamRef?
+    // Only touched on the main actor, and by deinit once nothing else holds the watcher.
+    nonisolated(unsafe) private var stream: FSEventStreamRef?
     private let onChange: @MainActor () -> Void
 
     init?(paths: [String], latency: TimeInterval = 0.3, onChange: @escaping @MainActor () -> Void) {
@@ -40,13 +41,17 @@ final class FileWatcher {
 
     func stop() {
         guard let stream else { return }
-        FSEventStreamStop(stream)
-        FSEventStreamInvalidate(stream)
-        FSEventStreamRelease(stream)
+        Self.tearDown(stream)
         self.stream = nil
     }
 
-    isolated deinit {
-        stop()
+    deinit {
+        if let stream { Self.tearDown(stream) }
+    }
+
+    private nonisolated static func tearDown(_ stream: FSEventStreamRef) {
+        FSEventStreamStop(stream)
+        FSEventStreamInvalidate(stream)
+        FSEventStreamRelease(stream)
     }
 }
