@@ -48,6 +48,7 @@
   .note { margin-top: 18px; color: var(--muted); font-size: 13px; }
 
   /* The tour: only the poster loads with the page. The video is fetched when the play button is pressed. */
+  #island-tour { margin-top: 48px; }
   .tour { position: relative; margin: 72px auto 0; aspect-ratio: 1240 / 720; border-radius: 18px; overflow: hidden; border: 1px solid var(--line); background: #15161a; box-shadow: 0 40px 120px #0008; }
   .tour img, .tour video { width: 100%; height: 100%; object-fit: cover; }
   .tour video { background: #000; object-fit: contain; }
@@ -120,6 +121,7 @@
     <div class="links">
       <a href="#switcher">Switcher</a>
       <a href="#tiling">Tiling</a>
+      <a href="#island">Island</a>
       <a href="#privacy">Privacy</a>
       <a href="https://github.com/2yuri/cmdtab">GitHub</a>
       <a class="btn primary" href="https://github.com/2yuri/cmdtab/releases/latest/download/CmdTab.dmg">Download</a>
@@ -138,7 +140,7 @@
     </div>
     <p class="note">Free &amp; open source · macOS 14+ · Signed &amp; notarized</p>
 
-    <div class="tour" id="tour">
+    <div class="tour" id="tour" data-video="assets/cmdtab-tour.mp4" data-poster="assets/tour-poster.webp">
       <img src="assets/tour-poster.webp" width="1860" height="1080" alt="The CmdTab switcher over a Mac desktop">
       <button class="play" type="button" aria-label="Play the one-minute tour, with sound">
         <span class="disc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.2v13.6a1 1 0 0 0 1.5.86l11-6.8a1 1 0 0 0 0-1.72l-11-6.8A1 1 0 0 0 8 5.2z" fill="#101215"/></svg></span>
@@ -182,12 +184,51 @@
       <article class="card"><img src="assets/sizes.webp" loading="lazy" alt=""><div class="text"><h3>Widths and heights</h3><p>Each window keeps its own width, 33% to 100% of the screen, and its height in a stack. CmdTab remembers them per app.</p></div></article>
       <article class="card"><img src="assets/floating.webp" loading="lazy" alt=""><div class="text"><h3>Floating apps</h3><p>System apps and any app you pick never join the strip, and step aside when you go back to your columns.</p></div></article>
     </div>
+    <div class="grid">
+      <article class="card"><img src="assets/tabs.webp" loading="lazy" alt=""><div class="text"><h3>Tabs (⌃⌥T)</h3><p>One column, one window at a time, full height, the others peeking out behind. Switch with <kbd>⌃⌥↑</kbd> <kbd>⌃⌥↓</kbd> or a click on an edge; ⌘⇥ goes straight to any of them.</p></div></article>
+    </div>
+  </section>
+
+  <section id="island" class="wrap">
+    <div class="overline">THE ISLAND <span class="beta">NEW</span></div>
+    <h2>Your notch, put to work.</h2>
+    <p class="intro">Agents, music, files, your day and a Pomodoro live in the notch. It stays the notch's size until something happens, and every module is off until you turn it on.</p>
+    <div class="tour" id="island-tour" data-video="assets/cmdtab-island.mp4" data-poster="assets/island-poster.webp">
+      <img src="assets/island-poster.webp" width="1860" height="1046" loading="lazy" alt="The CmdTab Island in a Mac's notch">
+      <button class="play" type="button" aria-label="Play the Island tour, with sound">
+        <span class="disc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.2v13.6a1 1 0 0 0 1.5.86l11-6.8a1 1 0 0 0 0-1.72l-11-6.8A1 1 0 0 0 8 5.2z" fill="#101215"/></svg></span>
+        <span class="label">Watch the Island tour · with sound</span>
+      </button>
+    </div>
+    <div class="grid">
+      <article class="card"><img src="assets/island-overview.webp" loading="lazy" alt=""><div class="text"><h3>Overview</h3><p>The first tab sums up the rest: what's playing, how your Mac is doing, what your agents have left and what's next. CPU and memory are read only while it's open.</p></div></article>
+    </div>
+    <div class="grid g-2">
+      <article class="card"><img src="assets/island-agents.webp" loading="lazy" alt=""><div class="text"><h3>Claude Code and Codex</h3><p>Every session at a glance: what each agent is doing, which one needs you, and how much of your limits is left. Click one to jump to its terminal.</p></div></article>
+      <article class="card"><img src="assets/island-everything.webp" loading="lazy" alt=""><div class="text"><h3>Everything at once</h3><p>Your song and Pomodoro on the left, your agents on the right. The closed island widens just enough.</p></div></article>
+    </div>
+    <div class="grid g-2">
+      <article class="card"><img src="assets/island-approve.webp" loading="lazy" alt=""><div class="text"><h3>Approve from the notch</h3><p>Claude Code asks, you answer in the island: Allow, Always allow or Deny, without leaving what you're doing.</p></div></article>
+      <article class="card"><img src="assets/island-music.webp" loading="lazy" alt=""><div class="text"><h3>Music</h3><p>Whatever is playing, from any app: artwork, live bars, scrub, skip, shuffle and AirPlay.</p></div></article>
+    </div>
+    <div class="grid g-2">
+      <article class="card"><img src="assets/island-shelf.webp" loading="lazy" alt=""><div class="text"><h3>Shelf</h3><p>Drop files on the notch to hold them for a day. New downloads and screenshots land there too.</p></div></article>
+      <article class="card"><img src="assets/island-calendar.webp" loading="lazy" alt=""><div class="text"><h3>Calendar</h3><p>Your week, month or year, the day's events with Join for calls. Double-click a day to add an event: when it starts, ends or how long it lasts.</p></div></article>
+    </div>
+    <div class="grid g-2">
+      <article class="card"><img src="assets/island-focus.webp" loading="lazy" alt=""><div class="text"><h3>Focus</h3><p>Pomodoro rounds in the notch: focus, break, four to a set, with the time left at a glance.</p></div></article>
+      <article class="card"><img src="assets/island-window-drop.webp" loading="lazy" alt=""><div class="text"><h3>Drop a window on the notch</h3><p>With Tiling on, the island shows your columns: let go between two to move the window, on one to stack it. Without it, pick a half, fill or centre.</p></div></article>
+    </div>
+    <div class="grid g-2">
+      <article class="card"><img src="assets/island-moments.webp" loading="lazy" alt=""><div class="text"><h3>Moments</h3><p>A few seconds in the notch when headphones connect, the charger goes in, or a meeting is five minutes away.</p></div></article>
+      <article class="card"><img src="assets/island-clock-weather.webp" loading="lazy" alt=""><div class="text"><h3>World clock and weather</h3><p>Two cities beside the notch when it opens, the rest in a tab. Your city's weather, with only its name sent to Open-Meteo.</p></div></article>
+    </div>
   </section>
 
   <section id="privacy" class="wrap">
     <div class="overline">PRIVACY &amp; BATTERY</div>
     <h2>Idle means idle.</h2>
-    <p class="intro">CmdTab needs Accessibility and nothing else to switch. When you're not using it, it isn't doing anything.</p>
+    <p class="intro">CmdTab needs Accessibility and nothing else to switch. When you're not using it, it isn't doing anything. Island modules ask for their own access only when you turn them on.</p>
     <div class="stats">
       <div class="stat"><b class="on">0%</b><p>CPU while idle. CmdTab waits for ⌘⇥ and does nothing in between.</p></div>
       <div class="stat"><b>0</b><p>Analytics and telemetry. Nothing about you or your Mac is collected.</p></div>
@@ -218,17 +259,18 @@
 </footer>
 
 <script>
-  // Nothing of the video is downloaded until the visitor asks for it.
-  document.querySelector('#tour .play').addEventListener('click', function () {
-    const tour = document.getElementById('tour');
-    const video = document.createElement('video');
-    video.src = 'assets/cmdtab-tour.mp4';
-    video.controls = true;
-    video.playsInline = true;
-    video.preload = 'auto';
-    video.poster = 'assets/tour-poster.webp';
-    tour.replaceChildren(video);
-    video.play().catch(function () {});
+  // Nothing of a video is downloaded until the visitor asks for it.
+  document.querySelectorAll('.tour').forEach(function (tour) {
+    tour.querySelector('.play').addEventListener('click', function () {
+      const video = document.createElement('video');
+      video.src = tour.dataset.video;
+      video.controls = true;
+      video.playsInline = true;
+      video.preload = 'auto';
+      video.poster = tour.dataset.poster;
+      tour.replaceChildren(video);
+      video.play().catch(function () {});
+    });
   });
 </script>
 </body>
