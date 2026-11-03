@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: macos-15
+    runs-on: macos-26
     env:
       TEAM_ID: RQTYDUV329
       VERSION: ${{ inputs.tag || github.ref_name }}
