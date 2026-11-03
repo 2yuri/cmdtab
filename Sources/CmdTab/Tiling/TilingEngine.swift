@@ -726,7 +726,7 @@ final class TilingEngine {
                 self?.displayedScroll = nil
                 return finalPositions
             }
-            let scroll = start + (end - start) * progress
+            let scroll = start + (end - start) * CGFloat(progress)
             self?.displayedScroll = (space, scroll)
             return layout.layout(
                 strip, in: usable, previousScroll: 0, parkingBounds: parking,
