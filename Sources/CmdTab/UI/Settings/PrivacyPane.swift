@@ -41,7 +41,15 @@ struct PrivacyPane: View {
 
     @ViewBuilder
     private var networkRow: some View {
-        if updater?.automaticallyChecks == true {
+        if preferences.isIslandModuleOn(.weather) {
+            row(
+                "Network",
+                detail: "Weather for your city at most every 30 minutes, from Open-Meteo, only the city name."
+                    + (updater?.automaticallyChecks == true ? " One update check a day, to GitHub." : "")
+                    + " No analytics, no telemetry.",
+                status: "Weather" + (updater?.automaticallyChecks == true ? " and updates" : "")
+            )
+        } else if updater?.automaticallyChecks == true {
             row(
                 "Network",
                 detail: "One update check a day, to GitHub. No analytics, no telemetry. Turn it off in About.",

@@ -1,4 +1,5 @@
 import XCTest
+import Carbon.HIToolbox
 @testable import CmdTab
 
 final class ScrollLockStripTests: XCTestCase {
@@ -276,5 +277,262 @@ final class ScrollLockStripTests: XCTestCase {
         XCTAssertEqual(ColumnWidth.nearest(to: 0.4), .third)
         XCTAssertEqual(StackHeight.half.next, .full)
         XCTAssertEqual(StackHeight.nearest(to: 0.9), .threeQuarters)
+    }
+}
+
+final class WindowKindTests: XCTestCase {
+    func testDialogsThatCallThemselvesStandardWindowsFloat() {
+        XCTAssertTrue(WindowKind.isDialog(modal: true, canMinimize: true, canZoom: true))
+        XCTAssertTrue(WindowKind.isDialog(modal: false, canMinimize: false, canZoom: false))
+        XCTAssertFalse(WindowKind.isDialog(modal: false, canMinimize: true, canZoom: false), "A fixed-size window that minimizes is a window")
+        XCTAssertFalse(WindowKind.isDialog(modal: false, canMinimize: false, canZoom: true))
+    }
+}
+
+final class StripFocusHistoryTests: XCTestCase {
+    func testClosingANewWindowGoesBackToTheOneBefore() {
+        var strip = ScrollLockStrip<Int>()
+        for id in 1...5 { strip.append(id, width: .half) }
+        strip.focus(5)
+        strip.insert(6, width: .half)
+        strip.focus(6)
+        XCTAssertEqual(strip.columnIndex(of: 6), 5)
+        strip.remove(6)
+        XCTAssertEqual(strip.focused, 5, "Back to column 5, not the neighbour")
+        XCTAssertEqual(strip.windows, [1, 2, 3, 4, 5])
+    }
+
+    func testHistorySkipsClosedWindows() {
+        var strip = ScrollLockStrip<Int>()
+        for id in 1...3 { strip.append(id, width: .half) }
+        strip.focus(1)
+        strip.focus(2)
+        strip.focus(3)
+        strip.remove(2)
+        strip.remove(3)
+        XCTAssertEqual(strip.focused, 1)
+    }
+}
+
+final class StripReplaceTests: XCTestCase {
+    func testASwappedWindowKeepsTheColumn() {
+        var strip = ScrollLockStrip<Int>()
+        for id in 1...6 { strip.append(id, width: .half) }
+        strip.setWidth(.twoThirds, ofColumnWith: 5)
+        strip.focus(4)
+        strip.focus(5)
+        strip.replace(5, with: 50)
+        XCTAssertEqual(strip.windows, [1, 2, 3, 4, 50, 6])
+        XCTAssertEqual(strip.columns[4].width, .twoThirds)
+        XCTAssertEqual(strip.focused, 50)
+        strip.remove(50)
+        XCTAssertEqual(strip.focused, 4, "Closing it still goes back to where you were")
+    }
+}
+
+final class NotchDropTests: XCTestCase {
+    private typealias Strip = ScrollLockStrip<Int>
+
+    private func strip(_ windows: [Int]) -> Strip {
+        var strip = Strip()
+        for window in windows { strip.append(window, width: .half) }
+        return strip
+    }
+
+    func testPlaceInGapCountsColumnsWithoutTheWindow() {
+        var s = strip([1, 2, 3, 4])
+        s.place(1, inGap: 2) // Others are 2 3 4: between 3 and 4.
+        XCTAssertEqual(s.columns.map(\.windows), [[2], [3], [1], [4]])
+        s.place(4, inGap: 0)
+        XCTAssertEqual(s.columns.map(\.windows), [[4], [2], [3], [1]])
+    }
+
+    func testPlaceInGapTakesAWindowOutOfItsStack() {
+        var s = strip([1, 2, 3])
+        XCTAssertTrue(s.place(3, intoColumn: 0))
+        XCTAssertEqual(s.columns.map(\.windows), [[1, 3], [2]])
+        s.place(3, inGap: 2)
+        XCTAssertEqual(s.columns.map(\.windows), [[1], [2], [3]])
+    }
+
+    func testPlaceIntoAFullColumnDoesNothing() {
+        var s = strip([1, 2, 3, 4])
+        XCTAssertTrue(s.place(2, intoColumn: 0))
+        XCTAssertTrue(s.place(3, intoColumn: 0))
+        XCTAssertFalse(s.place(4, intoColumn: 0))
+        XCTAssertEqual(s.columns.map(\.windows), [[1, 2, 3], [4]])
+    }
+
+    func testTargetSplitsEachColumnIntoGapsAndMiddle() {
+        let columns = Array(repeating: NotchDrop.Column(apps: [1]), count: 4)
+        // Width 4 × 100 + 3 × 8 = 424.
+        XCTAssertEqual(NotchDrop.target(atX: 10, width: 424, columns: columns), .gap(0))
+        XCTAssertEqual(NotchDrop.target(atX: 50, width: 424, columns: columns), .column(0))
+        XCTAssertEqual(NotchDrop.target(atX: 104, width: 424, columns: columns), .gap(1))
+        XCTAssertEqual(NotchDrop.target(atX: 112, width: 424, columns: columns), .gap(1))
+        XCTAssertEqual(NotchDrop.target(atX: 420, width: 424, columns: columns), .gap(4))
+        XCTAssertNil(NotchDrop.target(atX: 600, width: 424, columns: columns))
+    }
+
+    func testFullColumnIsNotATarget() {
+        let columns = [NotchDrop.Column(apps: [1, 2, 3])]
+        XCTAssertNil(NotchDrop.target(atX: 50, width: 100, columns: columns))
+    }
+}
+
+final class StripTabsTests: XCTestCase {
+    private typealias Strip = ScrollLockStrip<Int>
+
+    private func strip(_ windows: [Int], focused: Int? = nil) -> Strip {
+        var strip = Strip()
+        for window in windows { strip.append(window, width: .half) }
+        if let focused { strip.focus(focused) }
+        return strip
+    }
+
+    func testToggleTabJoinsTheColumnOnTheLeftAndLeavesAgain() {
+        var s = strip([1, 2, 3], focused: 2)
+        XCTAssertTrue(s.toggleTab(2))
+        XCTAssertEqual(s.columns.map(\.windows), [[1, 2], [3]])
+        XCTAssertTrue(s.columns[0].isTabbed)
+        XCTAssertEqual(s.columns[0].active, 2, "The new tab is in front")
+        XCTAssertEqual(s.heightFractions(of: s.columns[0]), [1, 1], "Every tab is full height")
+        XCTAssertTrue(s.toggleTab(2))
+        XCTAssertEqual(s.columns.map(\.windows), [[1], [2], [3]])
+        XCTAssertFalse(s.columns[0].isTabbed, "One window left is a plain column again")
+    }
+
+    func testToggleTabNeedsAColumnOnTheLeftThatIsntSplit() {
+        var s = strip([1, 2, 3])
+        XCTAssertFalse(s.toggleTab(1), "Nothing on the left")
+        s.stack(2, onto: 1, below: true, height: .half)
+        XCTAssertFalse(s.toggleTab(3), "A split stack can't hold tabs")
+        XCTAssertFalse(s.toggleTab(2), "A window in a split stack stays there")
+        XCTAssertEqual(s.columns.map(\.windows), [[1, 2], [3]])
+    }
+
+    func testTabsAndSplitsNeverMix() {
+        var s = strip([1, 2, 3])
+        s.tab(2, onto: 1)
+        XCTAssertFalse(s.canStack(3, onto: 1))
+        s.stack(3, onto: 1, below: true, height: .half)
+        XCTAssertEqual(s.columns.map(\.windows), [[1, 2], [3]], "Stacking onto tabs does nothing")
+        XCTAssertNil(s.cycleHeight(of: 1))
+        XCTAssertNil(s.stepHeight(of: 1, taller: true))
+    }
+
+    func testTabsHaveNoLimit() {
+        var s = strip([1, 2, 3, 4, 5])
+        for window in 2...5 { XCTAssertTrue(s.tab(window, onto: 1)) }
+        XCTAssertEqual(s.columns.map(\.windows), [[1, 2, 3, 4, 5]])
+        XCTAssertEqual(s.columns[0].active, 5)
+    }
+
+    func testSwitchingTabsGoesRound() {
+        var s = strip([1, 2, 3])
+        s.tab(2, onto: 1)
+        s.tab(3, onto: 1)
+        s.focus(3)
+        XCTAssertEqual(s.focusInStack(by: 1), 1, "From the last tab to the first")
+        XCTAssertEqual(s.columns[0].active, 1)
+        XCTAssertEqual(s.focusInStack(by: -1), 3)
+    }
+
+    func testClosingTheTabInFrontShowsTheOneUsedBefore() {
+        var s = strip([1, 2, 3, 9])
+        s.tab(2, onto: 1)
+        s.tab(3, onto: 1)
+        s.focus(2)
+        s.focus(3)
+        s.remove(3)
+        XCTAssertEqual(s.focused, 2)
+        XCTAssertEqual(s.columns[0].active, 2)
+        XCTAssertEqual(s.tabOrder(of: s.columns[0]).first, 2)
+    }
+
+    func testFocusingAColumnLandsOnTheTabInFront() {
+        var s = strip([1, 2, 9], focused: 9)
+        s.tab(2, onto: 1)
+        s.focus(2)
+        s.focus(9)
+        XCTAssertEqual(s.focusColumn(by: -1), 2, "Not the first window: the one in front")
+        XCTAssertEqual(s.focusColumn(at: 1), 9)
+        XCTAssertEqual(s.focusColumn(at: 0), 2)
+    }
+
+    func testTabOrderPutsTheLastUsedRightBehind() {
+        var s = strip([1, 2, 3])
+        s.tab(2, onto: 1)
+        s.tab(3, onto: 1)
+        s.focus(1)
+        s.focus(3)
+        XCTAssertEqual(s.tabOrder(of: s.columns[0]), [3, 1, 2])
+    }
+
+    func testReplacedWindowKeepsItsTab() {
+        var s = strip([1, 2])
+        s.tab(2, onto: 1)
+        s.replace(2, with: 7)
+        XCTAssertEqual(s.columns[0].active, 7)
+        XCTAssertEqual(s.columns[0].windows, [1, 7])
+    }
+
+    func testIslandDropOntoTabsAddsATab() {
+        var s = strip([1, 2, 3, 4, 5])
+        s.tab(2, onto: 1)
+        s.tab(3, onto: 1)
+        s.tab(4, onto: 1)
+        XCTAssertTrue(s.place(5, intoColumn: 0), "Tabs take more than three")
+        XCTAssertEqual(s.columns.map(\.windows), [[1, 2, 3, 4, 5]])
+        XCTAssertTrue(s.columns[0].isTabbed)
+    }
+
+    func testLayoutPeeksEachTabBehind() {
+        var s = strip([1, 2, 3, 9])
+        s.tab(2, onto: 1)
+        s.tab(3, onto: 1)
+        s.focus(3)
+        s.focus(1)
+        let layout = ScrollLockLayout<Int>(options: .init(padding: 0, gap: 0, centreMode: .never, tabPeek: 16))
+        let result = layout.layout(s, in: CGRect(x: 0, y: 0, width: 1000, height: 800), previousScroll: 0)
+        XCTAssertEqual(result.frames[1]?.width, 500 - 32, "In front: the narrowest")
+        XCTAssertEqual(result.frames[3]?.width, 500 - 16, "Last used: right behind")
+        XCTAssertEqual(result.frames[2]?.width, 500, "At the back: the whole column")
+        XCTAssertEqual(result.frames[2]?.height, 800)
+        XCTAssertEqual(result.frames[1]?.minX, result.frames[2]?.minX)
+    }
+
+    func testManyTabsNeverSqueezeTheOneInFront() {
+        var s = strip(Array(1...10))
+        for window in 2...10 { s.tab(window, onto: 1) }
+        let layout = ScrollLockLayout<Int>(options: .init(padding: 0, gap: 0, centreMode: .never, tabPeek: 16))
+        let result = layout.layout(s, in: CGRect(x: 0, y: 0, width: 1000, height: 800), previousScroll: 0)
+        XCTAssertEqual(result.frames[10]?.width, 500 - 16 * CGFloat(ScrollLockLayout<Int>.maximumPeeks))
+    }
+}
+
+final class NotchDropTabsTests: XCTestCase {
+    func testTabsTakeADropEvenWhenThereAreMany() {
+        let columns = [NotchDrop.Column(apps: [1], tabs: 5)]
+        XCTAssertEqual(NotchDrop.target(atX: 50, width: 100, columns: columns), .column(0))
+    }
+}
+
+final class ArrangeTabModeTests: XCTestCase {
+    func testTabModeKeys() {
+        XCTAssertEqual(ArrangeHUD.action(keyCode: kVK_ANSI_T, flags: []), .arrangeTab, "T arms tab mode")
+        XCTAssertEqual(ArrangeHUD.action(keyCode: kVK_LeftArrow, flags: [], tabbing: true), .arrangeTabLeft)
+        XCTAssertEqual(ArrangeHUD.action(keyCode: kVK_RightArrow, flags: [], tabbing: true), .arrangeTabRight)
+        XCTAssertEqual(ArrangeHUD.action(keyCode: kVK_ANSI_D, flags: [], tabbing: true), .arrangeUnstack)
+        XCTAssertEqual(ArrangeHUD.action(keyCode: kVK_ANSI_T, flags: [], tabbing: true), .arrangeTab, "T again goes back")
+        XCTAssertEqual(ArrangeHUD.action(keyCode: kVK_Escape, flags: [], tabbing: true), .arrangeTab, "So does esc")
+    }
+
+    func testTabIntoEitherSide() {
+        var s = ScrollLockStrip<Int>()
+        for window in [1, 2, 3] { s.append(window, width: .half) }
+        XCTAssertTrue(s.tabIntoNeighbour(2, toTheRight: true))
+        XCTAssertEqual(s.columns.map(\.windows), [[1], [3, 2]])
+        XCTAssertFalse(s.tabIntoNeighbour(1, toTheRight: false), "Nothing on the left")
     }
 }

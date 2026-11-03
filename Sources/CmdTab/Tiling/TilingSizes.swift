@@ -169,3 +169,10 @@ enum DragToStack: String, Codable, CaseIterable, Sendable {
         }
     }
 }
+
+/// Dialogs that call themselves standard windows. Pure, so the rule can be tested.
+enum WindowKind {
+    static func isDialog(modal: Bool, canMinimize: Bool, canZoom: Bool) -> Bool {
+        modal || (!canMinimize && !canZoom)
+    }
+}

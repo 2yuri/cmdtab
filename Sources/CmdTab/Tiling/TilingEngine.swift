@@ -33,6 +33,10 @@ final class TilingEngine {
         case stack(onto: CGWindowID, below: Bool)
         /// Move to its own column right before or after the column holding `window`.
         case move(beside: CGWindowID, after: Bool)
+        /// Become a tab of the column holding `window` (let go on its title bar).
+        case tab(onto: CGWindowID)
+        /// Let go on the island's columns.
+        case notch(NotchDrop.Target)
     }
 
     private static let log = Logger(subsystem: "dev.yuri.CmdTab", category: "Tiling")
@@ -41,16 +45,23 @@ final class TilingEngine {
     /// Our own moves echo back as moved/resized notifications for a moment.
     private static let ownMoveEcho: TimeInterval = 0.4
     private static let tileableSubroles: Set<String> = [kAXStandardWindowSubrole]
+    /// The top of a column where letting go of a window makes it a tab: about a title bar's height.
+    private static let titleBarZone: CGFloat = 44
 
     private let preferences: Preferences
     private let watcher = AXWindowWatcher()
     private let dimOverlay = DimOverlay()
     private let dropZone = DropZoneOverlay()
+    /// A tiled window dragged up to the island.
+    let notchDrop = NotchDrop()
     private let stripMap = StripMapHUD()
     private let scrollTap = StripScrollTap()
     /// Desktops whose strip the user scrolled by hand; focus changes hand control back.
     private var manuallyScrolled: Set<PrivateAPI.SpaceID> = []
     private var pendingScroll: CGFloat = 0
+    /// The window that just lost focus, for a moment: if it turns out it was closing, focus goes
+    /// back to the one before it rather than to whatever macOS picked.
+    private var recentlyUnfocused: (id: CGWindowID, until: Date)?
     private var scrollTask: Task<Void, Never>?
     private let animator = WindowAnimator()
     private let ownPID = ProcessInfo.processInfo.processIdentifier
@@ -75,6 +86,8 @@ final class TilingEngine {
     private let focusOutline = FocusOutline()
     /// S was pressed in Arrange mode: the next ← or → stacks into that side, S again unstacks.
     private var isStackArmed = false
+    /// T was pressed in Arrange mode: the next ← or → tabs into that side, T again goes back.
+    private var isTabArmed = false
     private let thumbnailer = WindowThumbnailer()
     private var previews: [CGWindowID: NSImage] = [:]
     private var previewTask: Task<Void, Never>?
@@ -314,13 +327,33 @@ final class TilingEngine {
             guard let height = strip.cycleHeight(of: focused) else {
                 // Not in a stack: nothing to resize. Show the map so the key visibly did something.
                 if let layout = lastLayout {
-                    stripMap.flash(Self.map(of: layout.result, focused: strip.focusedColumnIndex), on: layout.screen)
+                    stripMap.flash(Self.map(of: layout.result, strip: strip), on: layout.screen)
                 }
                 return
             }
             remember(height: height, for: focused)
         case .toggleStack:
             strip.toggleStack(focused, height: stackHeight(for: focused))
+        case .arrangeTab:
+            isTabArmed.toggle() // T: Tab mode on or off.
+            isStackArmed = false
+            updateArrangePrompt()
+            return
+        case .arrangeTabLeft, .arrangeTabRight:
+            guard strip.tabIntoNeighbour(focused, toTheRight: action == .arrangeTabRight) else {
+                showArrangeNote("Nothing to tab with on that side")
+                return
+            }
+        case .toggleTab:
+            guard strip.toggleTab(focused) else {
+                let note = column?.isSplit == true ? "A split stack can't hold tabs" : "Nothing on the left to tab with"
+                if isArranging {
+                    showArrangeNote(note)
+                } else if let layout = lastLayout {
+                    stripMap.flash(Self.map(of: layout.result, strip: strip), on: layout.screen)
+                }
+                return
+            }
         case .toggleArrange:
             if isArranging { endArrange() } else { beginArrange() }
             return
@@ -329,6 +362,7 @@ final class TilingEngine {
             return
         case .arrangeStack:
             isStackArmed.toggle() // S: Stack mode on or off.
+            isTabArmed = false
             updateArrangePrompt()
             return
         case .arrangeLeft: strip.moveFocusedColumn(by: -1)
@@ -351,7 +385,7 @@ final class TilingEngine {
             }
         case .arrangeUnstack:
             guard let column, column.windows.count > 1 else {
-                showArrangeNote("Not in a stack")
+                showArrangeNote(isTabArmed ? "Not in tabs" : "Not in a stack")
                 return
             }
             strip.unstack(focused)
@@ -410,30 +444,78 @@ final class TilingEngine {
 
         if wantsScrollLock {
             var strip = strips[space] ?? ScrollLockStrip()
-            let present = Set(windows.map(\.id))
+            var present = Set(windows.map(\.id))
             var cascade: CGFloat = 0
+            let existing = Self.existingWindowIDs()
+            // Windows that just appeared, by app: one may be taking the place of one that just left.
+            var arrivals = Dictionary(grouping: windows.filter { !strip.contains($0.id) }, by: \.pid)
+            var replaced = Set<CGWindowID>()
             for id in strip.windows where !present.contains(id) {
-                // Still open (its app was made to float, say): bring it back on screen. Closed or
-                // minimized windows are just forgotten.
-                if let window = tiled[id], window.element.value(of: kAXMinimizedAttribute) as Bool? == false {
+                let why = departure(of: id, space: space, existing: existing)
+                Self.log.debug("strip: \(self.name(id), privacy: .public) missing → \(String(describing: why), privacy: .public)")
+                switch why {
+                case .stays:
+                    // Missed by this read only (a slow app, a hidden one): it keeps its place.
+                    present.insert(id)
+                    continue
+                case .floats:
+                    // Still open, but its app floats now: bring it back on screen.
                     bringBack(id, cascade: &cascade)
                     ignoreMovesUntil = Date().addingTimeInterval(Self.ownMoveEcho)
+                case .gone:
+                    // The same app opened another window at the same moment (TablePlus swaps its
+                    // launcher for a database window and back): the new one takes this column.
+                    if let pid = tiled[id]?.pid, var candidates = arrivals[pid], !candidates.isEmpty {
+                        let successor = candidates.removeFirst()
+                        arrivals[pid] = candidates
+                        strip.replace(id, with: successor.id)
+                        replaced.insert(successor.id)
+                        if originalFrames[successor.id] == nil { originalFrames[successor.id] = successor.frame }
+                        Self.log.debug("strip: \(self.name(successor.id), privacy: .public) takes the place of \(self.name(id), privacy: .public)")
+                    }
                 }
                 applied[id] = nil
                 if let window = tiled[id] { watcher.forgetWindow(id, pid: window.pid) }
             }
+            let focusBefore = strip.focused
+            let leaving = Set(strip.windows).subtracting(present)
             strip.retain(present)
+            // The focused window closed for good: the strip went back to the one you were on before.
+            // Focus it for real, instead of following whichever window macOS picked, unless macOS
+            // picked a window that just opened (that one is where you're going). macOS may move
+            // focus a moment before the window is gone, so a window that lost focus just now counts.
+            let followsNewWindow = focusedID.map { replaced.contains($0) || !strip.contains($0) } ?? false
+            var returnTo = !followsNewWindow && focusBefore != nil && focusBefore != strip.focused ? strip.focused : nil
+            if returnTo == nil, !followsNewWindow, let recent = recentlyUnfocused, leaving.contains(recent.id),
+               Date() < recent.until, let previous = strip.history.last {
+                returnTo = previous
+                strip.focus(previous)
+            }
             let isNewStrip = strip.isEmpty
             // A new strip keeps the left-to-right order windows already had.
             for window in windows.sorted(by: { $0.frame.minX < $1.frame.minX }) where !strip.contains(window.id) {
                 let width = preferences.rememberedSize(for: window.bundleID)?.width ?? preferences.defaultColumnWidth
                 if originalFrames[window.id] == nil { originalFrames[window.id] = window.frame }
                 if isNewStrip { strip.append(window.id, width: width) } else { strip.insert(window.id, width: width) }
+                Self.log.debug("strip: new \(self.name(window.id), privacy: .public)")
             }
             let previousFocus = strip.focused
             // In Arrange mode the selection is the strip's own (raising a window must not move it back).
-            if !isArranging, let focusedID, strip.contains(focusedID) { strip.focus(focusedID) }
+            if let returnTo {
+                Self.log.debug("strip: focused window closed, back to \(self.name(returnTo), privacy: .public) (macOS picked \(focusedID.map(self.name) ?? "none", privacy: .public))")
+                focus(returnTo)
+                recentlyUnfocused = nil
+            } else if !isArranging, let focusedID, strip.contains(focusedID) {
+                if let before = strip.focused, before != focusedID {
+                    recentlyUnfocused = (before, Date().addingTimeInterval(1))
+                }
+                strip.focus(focusedID)
+            }
             if previousFocus != strip.focused { manuallyScrolled.remove(space) }
+            if strip.windows != strips[space]?.windows || previousFocus != strip.focused {
+                let order = strip.columns.enumerated().map { "\($0.offset + 1):\($0.element.windows.map(self.name).joined(separator: "+"))" }
+                Self.log.debug("strip: \(order.joined(separator: "  "), privacy: .public) | focus \(strip.focused.map(self.name) ?? "none", privacy: .public)")
+            }
             if let focusedID, strip.contains(focusedID) { hideFloatingApps() }
             strips[space] = strip
             layOut(space: space, on: screen, flashMap: previousFocus != nil && previousFocus != strip.focused)
@@ -547,7 +629,7 @@ final class TilingEngine {
             scrollStrip(strip, from: shownScroll, to: result, layout: layout, usable: usable, parking: parking, space: space, screen: screen)
             for (id, frame) in result.frames { applied[id] = frame }
             if flashMap && !isArranging {
-                stripMap.flash(Self.map(of: result, focused: strip.focusedColumnIndex), on: screen)
+                stripMap.flash(Self.map(of: result, strip: strip), on: screen)
             }
             return
         }
@@ -566,7 +648,7 @@ final class TilingEngine {
             for (id, frame) in targets { applied[id] = frame }
         }
         if flashMap && !isArranging {
-            stripMap.flash(Self.map(of: result, focused: strip.focusedColumnIndex), on: screen)
+            stripMap.flash(Self.map(of: result, strip: strip), on: screen)
         }
     }
 
@@ -672,7 +754,7 @@ final class TilingEngine {
         }
         ignoreMovesUntil = .distantFuture
         animator.animate(moves, on: layout.screen, visibleArea: layout.usable, duration: WindowAnimator.bounceDuration)
-        stripMap.flash(Self.map(of: layout.result, focused: strip.focusedColumnIndex), on: layout.screen)
+        stripMap.flash(Self.map(of: layout.result, strip: strip), on: layout.screen)
     }
 
     /// Moves one window, touching its size only when it changes.
@@ -687,12 +769,21 @@ final class TilingEngine {
     }
 
     /// The strip map in screen widths: a column at 50% is half a screen wide.
-    private static func map(of result: ScrollLockLayout<CGWindowID>.Result, focused: Int?) -> StripMapHUD.Map {
+    private static func map(of result: ScrollLockLayout<CGWindowID>.Result, strip: ScrollLockStrip<CGWindowID>) -> StripMapHUD.Map {
         let unit = Double(max(result.viewWidth, 1))
+        let focused = strip.focusedColumnIndex
         return StripMapHUD.Map(
             columns: result.columnSpans.map { (offset: Double($0.offset) / unit, width: Double($0.width) / unit) },
             focused: focused,
-            viewOffset: Double(result.scroll) / unit
+            viewOffset: Double(result.scroll) / unit,
+            tabLabels: strip.columns.enumerated().map { index, column in
+                guard column.isTabbed else { return nil }
+                guard index == focused, let active = column.active, let row = column.windows.firstIndex(of: active) else {
+                    return "\(column.windows.count)"
+                }
+                return "\(row + 1)/\(column.windows.count)"
+            },
+            splits: strip.columns.map { $0.isSplit ? $0.windows.count : 1 }
         )
     }
 
@@ -739,7 +830,7 @@ final class TilingEngine {
               let column = ScrollLockLayout<CGWindowID>.columnNearestToCentre(of: layout.result)
         else { return }
         let previous = strip.focused
-        if strip.focusedColumnIndex != column, let window = strip.columns[column].windows.first {
+        if strip.focusedColumnIndex != column, let window = strip.columns[column].entry {
             strip.focus(window)
         }
         strips[space] = strip
@@ -767,6 +858,7 @@ final class TilingEngine {
         isArranging = true
         thumbnailer.resetSession()
         isStackArmed = false
+        isTabArmed = false
         // The bar takes the keyboard itself: one path for every key, and Secure Input can't hide them.
         if let layout = lastLayout, let strip = strips[layout.space] {
             updateArrangeOverlays(strip: strip, result: layout.result, screen: layout.screen)
@@ -783,6 +875,7 @@ final class TilingEngine {
         previewTask = nil
         previews.removeAll() // Snapshots live only while Arrange mode is on.
         isStackArmed = false
+        isTabArmed = false
         // Hide the bar before focusing, so losing the keyboard to that window doesn't end Arrange mode twice.
         arrangeHUD.hide()
         focusOutline.hide()
@@ -798,22 +891,25 @@ final class TilingEngine {
     ) {
         let showsPreviews = preferences.arrangePreviews && CGPreflightScreenCaptureAccess()
         let tiles = strip.columns.map { column in
-            ArrangeHUD.Tile(
-                parts: zip(column.windows, strip.heightFractions(of: column)).map { id, height in
+            // A column of tabs shows the one in front, and how many there are.
+            let shown = column.isTabbed ? column.entry.map { [$0] } ?? [] : column.windows
+            return ArrangeHUD.Tile(
+                parts: zip(shown, column.isTabbed ? [1] : strip.heightFractions(of: column)).map { id, height in
                     ArrangeHUD.Tile.Part(
                         icon: tiled[id].flatMap { NSRunningApplication(processIdentifier: $0.pid)?.icon },
                         preview: showsPreviews ? previews[id] ?? Self.placeholderPreview : nil,
                         height: height
                     )
                 },
-                width: column.width.fraction
+                width: column.width.fraction,
+                tabs: column.isTabbed ? column.windows.count : 1
             )
         }
         Self.log.debug("arrange bar: \(tiles.count) columns, \(tiles.map { "\($0.parts.count)" }.joined(separator: ","), privacy: .public)")
         if showsPreviews { capturePreviews(of: strip.windows, screen: screen) }
         stripMap.hide()
         arrangeHUD.show(
-            tiles, focused: strip.focusedColumnIndex, stackPrompt: isStackArmed, showsHeight: true,
+            tiles, focused: strip.focusedColumnIndex, stackPrompt: isStackArmed, tabPrompt: isTabArmed, showsHeight: true,
             note: arrangeNote, on: screen
         )
         if let focused = strip.focused, let frame = result.frames[focused] {
@@ -878,7 +974,8 @@ final class TilingEngine {
         guard let space = lastLayout?.space, var strip = strips[space] else { return }
         Self.log.debug("arrange: tile \(from) dropped onto \(target)")
         guard strip.stackColumn(from, into: target) else {
-            showArrangeNote("That column already holds three windows")
+            let tabbed = strip.columns.indices.contains(target) && strip.columns[target].isTabbed
+            showArrangeNote(tabbed ? "A column of tabs can't be split" : "That column already holds three windows")
             return
         }
         strips[space] = strip
@@ -928,6 +1025,7 @@ final class TilingEngine {
     /// a column it splits that column's height, on the column's left or right edge it moves there.
     /// Columns out of view are reached at the screen's edges (with full-width columns, the only way).
     private func updateDropZone() {
+        if updateNotchDrop() { return }
         guard dragStacks, var interaction, !interaction.resized, let layout = lastLayout,
               let strip = strips[layout.space], let source = strip.columnIndex(of: interaction.window)
         else { return dropZone.hide() }
@@ -943,7 +1041,12 @@ final class TilingEngine {
             where index != source && frame.contains(mouse) && frame.minX < layout.usable.maxX && frame.maxX > layout.usable.minX {
             let windows = strip.columns[index].windows
             let edge = min(90, frame.width * 0.22)
-            if mouse.x < frame.minX + edge || mouse.x > frame.maxX - edge, let first = windows.first {
+            if mouse.y < frame.minY + Self.titleBarZone, let entry = strip.columns[index].entry,
+               strip.canTab(interaction.window, onto: entry) {
+                interaction.drop = .tab(onto: entry)
+                zone = CGRect(x: frame.minX, y: frame.minY, width: frame.width, height: Self.titleBarZone)
+                label = "Tab with \(name(entry))"
+            } else if mouse.x < frame.minX + edge || mouse.x > frame.maxX - edge, let first = windows.first {
                 let after = mouse.x > frame.midX
                 interaction.drop = .move(beside: first, after: after)
                 zone = CGRect(x: after ? frame.maxX - edge : frame.minX, y: frame.minY, width: edge, height: frame.height)
@@ -981,10 +1084,36 @@ final class TilingEngine {
         self.interaction = interaction
     }
 
+    /// Pushed up into the menu bar, the dragged window goes to the island's columns instead.
+    /// Returns whether it's there.
+    private func updateNotchDrop() -> Bool {
+        let pointer = NSEvent.mouseLocation
+        guard notchDrop.isEnabled, var interaction, !interaction.resized, let layout = lastLayout,
+              let strip = strips[layout.space], let window = tiled[interaction.window],
+              let screen = NSScreen.under(pointer),
+              notchDrop.holds(pointer, screen: screen.frame)
+        else {
+            notchDrop.end()
+            if case .notch = interaction?.drop { interaction?.drop = nil }
+            return false
+        }
+        let columns = strip.without(interaction.window).columns.map { column in
+            column.isTabbed
+                ? NotchDrop.Column(apps: column.entry.map { [tiled[$0]?.pid ?? 0] } ?? [], tabs: column.windows.count)
+                : NotchDrop.Column(apps: column.windows.map { tiled[$0]?.pid ?? 0 })
+        }
+        notchDrop.show(columns, dragged: window.pid, pointerX: pointer.x)
+        interaction.drop = notchDrop.state?.target.map(Drop.notch)
+        self.interaction = interaction
+        dropZone.hide()
+        return true
+    }
+
     private func finishInteraction() {
         guard let interaction, let layout = lastLayout, var strip = strips[layout.space],
               let window = tiled[interaction.window]
         else { return endInteraction() }
+        let atNotch = notchDrop.state != nil
         endInteraction()
 
         let frame = window.element.frame ?? interaction.startFrame
@@ -1010,8 +1139,14 @@ final class TilingEngine {
                 strip.stack(window.id, onto: target, below: below, height: .half) // Splits the height evenly.
             case let .move(target, after):
                 strip.move(window.id, besideColumnOf: target, after: after)
+            case let .tab(target):
+                strip.tab(window.id, onto: target)
+            case let .notch(.gap(gap)):
+                strip.place(window.id, inGap: gap)
+            case let .notch(.column(index)):
+                strip.place(window.id, intoColumn: index)
             }
-        } else if let index = strip.columnIndex(of: window.id), strip.columns[index].windows.count > 1,
+        } else if !atNotch, let index = strip.columnIndex(of: window.id), strip.columns[index].windows.count > 1,
                   let column = layout.result.columnFrames[safe: index],
                   !column.contains(ScreenGeometry.accessibilityPoint(fromAppKit: NSEvent.mouseLocation)) {
             // Dragged out of its stack.
@@ -1028,9 +1163,55 @@ final class TilingEngine {
         mouseMonitor = nil
         interaction = nil
         dropZone.hide()
+        notchDrop.end()
     }
 
     // MARK: - Windows
+
+    private enum Departure { case stays, floats, gone }
+
+    /// "TablePlus 'Connections'#1234", for the debug log.
+    private func name(_ id: CGWindowID) -> String {
+        guard let window = tiled[id] else { return "#\(id)" }
+        return "\(window.appName)#\(id)"
+    }
+
+    /// Why a window on the strip didn't come back in this read. Only proof it left takes it off the
+    /// strip; otherwise a slow app or a hidden one would lose its place and come back somewhere
+    /// else, renumbering the columns.
+    private func departure(of id: CGWindowID, space: PrivateAPI.SpaceID, existing: Set<CGWindowID>) -> Departure {
+        guard existing.contains(id), let window = tiled[id],
+              let app = NSRunningApplication(processIdentifier: window.pid), !app.isTerminated else { return .gone }
+        let floatingApps = Set(preferences.floatingApps.map(\.bundleID))
+        if FloatingRule.floats(bundleID: window.bundleID, bundlePath: window.bundlePath,
+                               floatsSystemApps: preferences.floatsSystemApps, floatingApps: floatingApps) {
+            return .floats
+        }
+        // Hidden (⌘H): its windows come back where they were.
+        if app.isHidden { return .stays }
+        // Ask the app for its windows. Some apps keep a closed window around (TablePlus does), so
+        // the WindowServer still lists it: only the app knows it's closed. An app too slow to answer
+        // keeps its windows in place.
+        var value: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(
+            AXUIElementCreateApplication(window.pid), kAXWindowsAttribute as CFString, &value
+        )
+        guard result == .success, let appWindows = value as? [AXUIElement] else { return .stays }
+        guard appWindows.contains(where: { PrivateAPI.windowID(of: $0) == id }) else { return .gone }
+        let attributes = window.element.values(of: [kAXMinimizedAttribute, "AXFullScreen"])
+        if attributes[kAXMinimizedAttribute] as? Bool == true || attributes["AXFullScreen"] as? Bool == true {
+            return .gone
+        }
+        let spaces = PrivateAPI.spaceIDs(forWindow: id)
+        if !spaces.isEmpty && !spaces.contains(space) { return .gone }
+        return .stays
+    }
+
+    /// Every window the WindowServer knows, on any desktop: what isn't here was closed.
+    private static func existingWindowIDs() -> Set<CGWindowID> {
+        let all = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
+        return Set(all.compactMap { $0[kCGWindowNumber as String] as? CGWindowID })
+    }
 
     private func tileableWindows(on space: PrivateAPI.SpaceID, screen: CGRect) -> [Tiled] {
         let floatingApps = Set(preferences.floatingApps.map(\.bundleID))
@@ -1067,10 +1248,11 @@ final class TilingEngine {
             let element = AXUIElementCreateApplication(app.processIdentifier)
             let appWindows: [AXUIElement] = element.value(of: kAXWindowsAttribute) ?? []
             for window in appWindows {
-                let attributes = window.values(of: [kAXSubroleAttribute, kAXMinimizedAttribute, "AXFullScreen"])
+                let attributes = window.values(of: [kAXSubroleAttribute, kAXMinimizedAttribute, "AXFullScreen", "AXModal"])
                 guard let subrole = attributes[kAXSubroleAttribute] as? String, Self.tileableSubroles.contains(subrole),
                       attributes[kAXMinimizedAttribute] as? Bool != true,
                       attributes["AXFullScreen"] as? Bool != true,
+                      !Self.looksLikeDialog(window, modal: attributes["AXModal"] as? Bool),
                       !requiresResizable || window.isSettable(kAXSizeAttribute),
                       let id = PrivateAPI.windowID(of: window),
                       let frame = window.frame
@@ -1087,6 +1269,30 @@ final class TilingEngine {
             }
         }
         return windows
+    }
+
+    /// Some apps (Java ones like DBeaver, among others) give their dialogs the standard window
+    /// subrole. A modal window, or one that can neither be minimized nor zoomed, is a dialog: it
+    /// floats instead of becoming a column.
+    static func looksLikeDialog(_ window: AXUIElement, modal: Bool?) -> Bool {
+        if modal == true { return true }
+        func canUse(_ button: String) -> Bool {
+            guard let element: AXUIElement = window.value(of: button) else { return false }
+            return element.value(of: kAXEnabledAttribute) as Bool? ?? true
+        }
+        let canMinimize = canUse(kAXMinimizeButtonAttribute)
+        let canZoom = canUse(kAXZoomButtonAttribute) || canUse(kAXFullScreenButtonAttribute)
+        let dialog = WindowKind.isDialog(modal: modal ?? false, canMinimize: canMinimize, canZoom: canZoom)
+        let title: String = window.value(of: kAXTitleAttribute) ?? ""
+        let identifier: String = window.value(of: kAXIdentifierAttribute) ?? "-"
+        var pid: pid_t = 0
+        AXUIElementGetPid(window, &pid)
+        let app = NSRunningApplication(processIdentifier: pid)?.localizedName ?? "?"
+        let size = window.frame.map { "\(Int($0.width))x\(Int($0.height))" } ?? "?"
+        let buttons = [kAXCloseButtonAttribute, kAXMinimizeButtonAttribute, kAXZoomButtonAttribute, kAXFullScreenButtonAttribute]
+            .map { canUse($0) ? "1" : "0" }.joined()
+        Self.log.debug("window \(app, privacy: .public) id=\(identifier, privacy: .public) size=\(size, privacy: .public) resizable=\(window.isSettable(kAXSizeAttribute)) buttons(c,m,z,f)=\(buttons, privacy: .public) modal=\(modal ?? false) → \(dialog ? "floats" : "tiles", privacy: .public)")
+        return dialog
     }
 
     private func focusedElement() -> AXUIElement? {

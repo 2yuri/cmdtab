@@ -11,6 +11,8 @@
 
 **cmdtab** replaces the macOS ⌘⇥ switcher with one that switches between **windows**, shows only the
 ones **on the desktop you are looking at**, and does **nothing at all** while you aren't using it.
+Two optional parts come with it: [**Tiling**](#tiling), a scrolling strip of full-height columns, and
+the [**Island**](#island), which puts your agents, music, files and day in the notch.
 
 - **Windows, not apps.** Two VS Code windows are two choices, or one grouped tile if you prefer.
 - **This desktop only.** Each Space stays its own context. "All Desktops" is one click away.
@@ -19,7 +21,7 @@ ones **on the desktop you are looking at**, and does **nothing at all** while yo
 - **One permission.** Accessibility, to read window titles and focus the window you pick. Screen
   Recording is only requested if you turn on window previews.
 
-## Features
+## Switcher
 
 <table>
   <tr>
@@ -40,7 +42,7 @@ ones **on the desktop you are looking at**, and does **nothing at all** while yo
   </tr>
 </table>
 
-## Three styles
+### Three styles
 
 <p align="center"><img src="docs/images/styles.png" alt="Icons, Previews and Titles styles" width="100%"></p>
 
@@ -64,6 +66,9 @@ always there: hold ⌘ and tap ⇥ as usual, or let go of ⌘ and type.
   <tr>
     <td colspan="2"><img src="docs/images/features/arrange.png" alt="Arrange mode"></td>
   </tr>
+  <tr>
+    <td colspan="2"><img src="docs/images/features/tabs.png" alt="Tabs"></td>
+  </tr>
 </table>
 
 Off by default; turn it on in **Settings → Tiling**.
@@ -77,6 +82,10 @@ Off by default; turn it on in **Settings → Tiling**.
   column's side to move it there instead, or at the screen's edge to join the next column. Drag it
   out, or press ⌃⌥S, to unstack. By default dragging stacks only in Arrange mode (Always / In Arrange
   mode / Off in Settings).
+- **Tabs.** ⌃⌥T makes the focused window a tab of the column on its left (or drop it on a column's
+  title bar): one window at a time, full height, the others peeking out a little behind it. ⌃⌥↑ ↓
+  or a click on an edge brings one forward, ⌘⇥ goes straight to it, and ⌃⌥T again takes it out.
+  The strip map shows how many tabs a column holds.
 - **Arrange mode.** ⌃⌥A shows a numbered bar with a preview of every column, and the keys below
   rearrange the strip until you press esc. Drag a tile between others to reorder, or onto one to stack.
 - **Sizes that stick.** Columns are 33, 50, 66 or 100% wide; stacked windows 33, 50 or 100% tall.
@@ -87,10 +96,77 @@ Off by default; turn it on in **Settings → Tiling**.
 - **Screen padding.** Keeps every window, tiled or not, a set distance from the screen edges, measured
   from the edges so the menu bar counts towards it.
 - **Dim other windows.** A dark layer right below the focused window.
+- **Drop on the notch.** With the Island's Windows module on, drag a window up into the notch: the
+  island shows your columns. Let go between two to move the window there, on one to stack it.
 
 Turning Scroll Lock off puts every window back where it was.
 
+## Island <img src="https://img.shields.io/badge/NEW-B6F23A?style=flat-square&labelColor=101215" alt="New" height="20">
+
+<table>
+  <tr>
+    <td colspan="2"><img src="docs/images/island/overview.png" alt="Overview"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/images/island/agents.png" alt="Claude Code and Codex"></td>
+    <td width="50%"><img src="docs/images/island/everything.png" alt="Everything at once"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/island/approve.png" alt="Approve from the notch"></td>
+    <td><img src="docs/images/island/music.png" alt="Music"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/island/shelf.png" alt="Shelf"></td>
+    <td><img src="docs/images/island/calendar.png" alt="Calendar"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/island/focus.png" alt="Focus"></td>
+    <td><img src="docs/images/island/window-drop.png" alt="Drop a window on the notch"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/island/moments.png" alt="Moments"></td>
+    <td><img src="docs/images/island/clock-weather.png" alt="World clock and weather"></td>
+  </tr>
+</table>
+
+Off by default; turn it on in **Settings → Island**, then switch on the modules you want. A module
+that is off reads nothing and runs nothing. The island stays the notch's size until something
+happens, opens when the pointer rests on it (or on a click), and on a Mac without a notch it is a
+small pill under the menu bar.
+
+- **Overview.** The first tab sums up the rest: what's playing, CPU and memory with a live line and
+  the battery (read only while it's open), what your agents have left, and what's next: the next event
+  with Join and a Pomodoro one click away.
+- **Agents.** Claude Code and Codex sessions: which ones are working, which one needs you, and what
+  is left of your session and weekly limits. Click a session to bring its terminal forward; search
+  when there are many. Read from the files each tool keeps on your Mac, only when they change.
+- **Approvals.** Optional: Claude Code asks for permission in the island and you answer Allow,
+  Always allow or Deny without leaving what you're doing.
+- **Everything at once.** Closed, the island keeps yours on the left (the song, the Pomodoro, or the
+  agent waiting for you) and the agents on the right, one mark per tool, and widens only as much as
+  it needs.
+- **Music.** Whatever is playing, from any app: artwork, live bars, scrub, skip, shuffle and AirPlay.
+  With nothing playing it keeps its shape, quietly.
+- **Shelf.** Drop files on the notch and they wait there for 24 hours. New downloads and screenshots
+  can land there too. Drag them out, copy them or AirDrop them.
+- **Windows.** The windows on this desktop, with search. Drag a window up to the notch to put it on
+  the left or right half, fill the screen or centre it; with Tiling on, to move or stack it.
+- **Calendar.** Your week, month or year from the Calendar app, the picked day's events (all-day ones
+  too) with Join for calls, and new events: double-click a day or press +, then set when it starts,
+  ends or how long it lasts. Scroll over a day or an hour to change it.
+- **Meetings.** Your next event five minutes before it starts, with Join.
+- **Focus.** A Pomodoro timer: 25/5, 50/10 or your own, four rounds to a set, ticking beside the notch.
+- **World clock and Weather.** Two cities beside the notch, the rest in a tab; your city's weather,
+  with only the city name sent to Open-Meteo.
+- **Moments.** A few seconds when headphones connect (with their battery), the charger goes in, or
+  the battery runs low.
+
+Calendar and Meetings ask for Calendar access, Moments for Bluetooth, and watching for new downloads
+for the Downloads and Desktop folders, each only when you turn that module on.
+
 ## Keys
+
+### Switcher
 
 | Keys | Action |
 |---|---|
@@ -103,6 +179,8 @@ Turning Scroll Lock off puts every window back where it was.
 
 A quick ⌘⇥ tap switches to the previous window without showing the panel.
 
+### Tiling
+
 With Scroll Lock on:
 
 | Keys | Action |
@@ -112,10 +190,11 @@ With Scroll Lock on:
 | ⌃⌥⇧← / ⌃⌥⇧→ | Move the focused column |
 | ⌃⌥R / ⌃⌥⇧R | Cycle the column's width / the window's height in a stack |
 | ⌃⌥S | Stack the window under the column on its left, or take it out |
-| ⌃⌥↑ / ⌃⌥↓ | Focus within a stack |
+| ⌃⌥T | Make the window a tab of the column on its left, or take it out |
+| ⌃⌥↑ / ⌃⌥↓ | Focus within a stack, or switch tabs |
 | ⌃⌥A | Arrange mode |
 
-In Arrange mode:
+### Arrange mode
 
 | Keys | Action |
 |---|---|
@@ -125,6 +204,7 @@ In Arrange mode:
 | ⇧← / ⇧→ | Narrower / wider |
 | ⇧↑ / ⇧↓ | Taller / shorter in a stack |
 | S, then ← or → | Stack with the column on that side (D unstacks, S or esc goes back) |
+| T, then ← or → | Tab with the column on that side (D takes it out, T or esc goes back) |
 | esc | Done |
 
 ## Settings
@@ -138,6 +218,8 @@ Open them from the ⌘ icon in the menu bar, or by opening cmdtab again.
 - **Shortcuts:** what every key does, and a switch to hand ⌘⇥ back to macOS.
 - **Tiling (beta):** Scroll Lock, column widths and stack heights, remembered sizes, floating
   apps, animation, screen padding, dimming.
+- **Island:** which screens get it, hover or click, the modules and their order, Shelf and
+  weather, and the Claude Code and Codex connections.
 - **Exceptions:** hide apps from the switcher, or leave ⌘⇥ to an app while it is in front
   (virtual machines, remote desktops).
 - **Privacy:** what cmdtab can access, live.
@@ -180,6 +262,7 @@ Signing uses the team in `project.yml`. To build with your own Apple ID, pass yo
 | Focusing | Brings the exact window forward, unminimizing or unhiding it when needed. |
 | Previews | ScreenCaptureKit snapshots, only while the panel is open, selected window first. |
 | Tiling | Event-driven: Accessibility notifications (window opened, closed, focused, moved) and ⌃⌥ hot keys. Windows are moved through Accessibility; slides are paced by the display, each app on its own queue. Columns out of view are parked just past the right edge of the screen. The scroll tap is switched on only while ⌃⌥ is held. |
+| Island | One panel over the notch that never changes size; only the shape inside animates, and the spinning rings and music bars are Core Animation, so they cost no CPU. Agents are read on file-system events in `~/.claude` and `~/.codex`. Approvals come from a Claude Code hook through a local socket in `~/Library/Application Support/CmdTab`. Now Playing comes from the system's media service through a small bridge, since macOS answers only Apple's own processes. Calendar uses EventKit; Weather is one Open-Meteo request every 30 minutes. |
 | Updates | [Sparkle](https://sparkle-project.org) fetches `appcast.xml` from the latest GitHub release once a day. An update installs only if its EdDSA signature matches the key in the app and it carries the same Developer ID. No system profile or other data is sent. |
 
 Telling which Space a window is on and focusing one specific window has no public API, so cmdtab uses a

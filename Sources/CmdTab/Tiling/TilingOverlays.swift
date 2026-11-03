@@ -104,6 +104,10 @@ final class StripMapHUD {
         var focused: Int?
         /// The on-screen part, as shares of the screen width (its width is always 1).
         var viewOffset: Double
+        /// Per column: "2/3" for the focused column's tabs, "3" for another's, nil without tabs.
+        var tabLabels: [String?] = []
+        /// Per column: how many windows share its height (1 for a column on its own or of tabs).
+        var splits: [Int] = []
     }
 
     private let window = makeOverlayWindow(level: .statusBar)
@@ -115,7 +119,8 @@ final class StripMapHUD {
     }
 
     func flash(_ map: Map, on screen: NSScreen) {
-        guard map.columns.count > 1 else { return hide() }
+        // One column says nothing, unless it holds tabs (switching them shows which one you're on).
+        guard map.columns.count > 1 || map.tabLabels.contains(where: { $0 != nil }) else { return hide() }
         mapView.map = map
         let size = mapView.fittingSize
         let visible = screen.visibleFrame
@@ -179,6 +184,25 @@ private final class StripMapView: NSView {
             )
             (index == map.focused ? volt : NSColor.white.withAlphaComponent(0.3)).setFill()
             NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4).fill()
+            // A split stack: a thin line between its windows, like the column itself.
+            if index < map.splits.count, map.splits[index] > 1 {
+                let count = map.splits[index]
+                NSColor(calibratedWhite: 0.11, alpha: 1).setFill()
+                for row in 1..<count {
+                    let y = rect.minY + rect.height * CGFloat(row) / CGFloat(count)
+                    CGRect(x: rect.minX, y: y - 1, width: rect.width, height: 2).fill()
+                }
+            }
+            if index < map.tabLabels.count, let label = map.tabLabels[index] {
+                let text = NSAttributedString(string: label, attributes: [
+                    .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .bold),
+                    .foregroundColor: index == map.focused ? (NSColor(named: "Ink") ?? .black) : NSColor.white,
+                ])
+                let size = text.size()
+                if size.width + 4 <= rect.width {
+                    text.draw(at: CGPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2))
+                }
+            }
         }
 
         let view = CGRect(

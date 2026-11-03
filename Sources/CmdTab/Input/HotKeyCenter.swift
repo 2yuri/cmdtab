@@ -19,11 +19,12 @@ final class HotKeyCenter {
         // Scroll Lock (⌃⌥…), registered only while it is on.
         case focusColumnLeft = 20, focusColumnRight, moveColumnLeft, moveColumnRight
         case focusStackUp, focusStackDown, cycleWidth, cycleHeight, toggleStack
-        case toggleArrange
+        case toggleArrange, toggleTab
         // Arrange mode keys, typed into its bar (see `ArrangeHUD`).
         case arrangeLeft = 40, arrangeRight, arrangeToStart, arrangeToEnd, arrangeWidth, arrangeStack, arrangeDone
         case arrangeHeight, arrangeStackLeft, arrangeStackRight
-        case arrangeWider = 70, arrangeNarrower, arrangeTaller, arrangeShorter, arrangeUnstack
+        case arrangeWider = 70, arrangeNarrower, arrangeTaller, arrangeShorter, arrangeUnstack, arrangeTab
+        case arrangeTabLeft = 80, arrangeTabRight
         case arrangeFocus1 = 51, arrangeFocus2, arrangeFocus3, arrangeFocus4, arrangeFocus5
         case arrangeFocus6, arrangeFocus7, arrangeFocus8, arrangeFocus9
 
@@ -52,7 +53,7 @@ final class HotKeyCenter {
         (.closeWindow, kVK_ANSI_W), (.minimizeWindow, kVK_ANSI_M), (.quitApp, kVK_ANSI_Q),
     ]
 
-    /// Scroll Lock keys: ⌃⌥ plus arrows, R and S.
+    /// Scroll Lock keys: ⌃⌥ plus arrows, R, S, T and A.
     private static let tilingKeys: [(Action, Int, Int)] = [
         (.focusColumnLeft, kVK_LeftArrow, controlKey | optionKey),
         (.focusColumnRight, kVK_RightArrow, controlKey | optionKey),
@@ -63,6 +64,7 @@ final class HotKeyCenter {
         (.cycleWidth, kVK_ANSI_R, controlKey | optionKey),
         (.cycleHeight, kVK_ANSI_R, controlKey | optionKey | shiftKey),
         (.toggleStack, kVK_ANSI_S, controlKey | optionKey),
+        (.toggleTab, kVK_ANSI_T, controlKey | optionKey),
         (.toggleArrange, kVK_ANSI_A, controlKey | optionKey),
     ]
 

@@ -5,7 +5,8 @@ import Dispatch
 ///
 /// Disabling a symbolic hot key is global WindowServer state that survives the process,
 /// so restoring it is wired to every exit path we can intercept: normal termination,
-/// `atexit`, and the usual termination signals (`kill`, Ctrl-C, logout).
+/// `atexit`, the usual termination signals (`kill`, Ctrl-C, logout), and crashes (a crash would
+/// otherwise leave ⌘⇥ dead until CmdTab is opened again).
 @MainActor
 final class NativeSwitcherGuard {
     private var signalSources: [DispatchSourceSignal] = []
@@ -42,5 +43,16 @@ final class NativeSwitcherGuard {
             source.resume()
             signalSources.append(source)
         }
+
+        // A crash: give ⌘⇥ back, then let the crash carry on as it would (and leave its report).
+        for signalNumber in Self.crashSignals {
+            signal(signalNumber) { received in
+                signal(received, SIG_DFL)
+                NativeSwitcherGuard.setNativeSwitcher(enabled: true)
+                raise(received)
+            }
+        }
     }
+
+    nonisolated static let crashSignals: [Int32] = [SIGTRAP, SIGABRT, SIGSEGV, SIGBUS, SIGILL, SIGFPE]
 }

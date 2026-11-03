@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, switcher, shortcuts, tiling, exceptions, privacy, about
+    case general, switcher, shortcuts, tiling, island, exceptions, privacy, about
 
     var id: Self { self }
 
@@ -11,6 +11,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .switcher: "Switcher"
         case .shortcuts: "Shortcuts"
         case .tiling: "Tiling"
+        case .island: "Island"
         case .exceptions: "Exceptions"
         case .privacy: "Privacy"
         case .about: "About"
@@ -23,6 +24,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .switcher: "square.grid.2x2"
         case .shortcuts: "command"
         case .tiling: "rectangle.split.3x1"
+        case .island: "capsule.fill"
         case .exceptions: "eye.slash"
         case .privacy: "lock.shield"
         case .about: "info.circle"
@@ -73,8 +75,8 @@ struct SettingsView: View {
             Divider().ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 0) {
-                // Tiling draws its own title, with the beta tag and its subpage path.
-                if current != .tiling {
+                // Tiling and Island draw their own titles, with a tag.
+                if current != .tiling && current != .island {
                     Text(current.title)
                         .font(.title2.weight(.semibold))
                         .padding(.horizontal, 20)
@@ -96,6 +98,7 @@ struct SettingsView: View {
         case .switcher: SwitcherPane(preferences: preferences, screenRecording: screenRecording)
         case .shortcuts: ShortcutsPane(preferences: preferences)
         case .tiling: TilingPane(preferences: preferences)
+        case .island: IslandPane(preferences: preferences)
         case .exceptions: ExceptionsPane(preferences: preferences)
         case .privacy: PrivacyPane(permission: permission, screenRecording: screenRecording, preferences: preferences, updater: updater)
         case .about: AboutPane(preferences: preferences, updater: updater)

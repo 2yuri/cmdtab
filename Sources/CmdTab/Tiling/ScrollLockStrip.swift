@@ -1,13 +1,23 @@
 import Foundation
 
 /// The windows of one desktop as Scroll Lock arranges them: columns left to right, each holding
-/// one window or a stack of up to three. Pure state, so every rearrangement can be tested.
+/// one window, a stack of up to three sharing the height, or tabs: any number taking turns at full
+/// height. Pure state, so every rearrangement can be tested.
 struct ScrollLockStrip<Window: Hashable>: Equatable {
     struct Column: Equatable {
         var windows: [Window]
         var width: ColumnWidth
         /// Explicit heights; windows without one share what's left equally.
         var heights: [Window: StackHeight] = [:]
+        /// Tabs: the windows take turns at full height, `active` in front. A column is split or
+        /// tabbed, never both; with one window left it is a plain column again.
+        var isTabbed = false
+        var active: Window?
+
+        /// The window you land on: the front tab, or the top of a stack.
+        var entry: Window? { isTabbed ? (active ?? windows.first) : windows.first }
+        /// Holds more than one window sharing the height.
+        var isSplit: Bool { !isTabbed && windows.count > 1 }
     }
 
     static var maximumStack: Int { 3 }
@@ -15,6 +25,8 @@ struct ScrollLockStrip<Window: Hashable>: Equatable {
     private(set) var columns: [Column] = []
     /// The focused window, if it is on the strip.
     private(set) var focused: Window?
+    /// Windows focused before, most recent last: closing a window goes back to the one before it.
+    private(set) var history: [Window] = []
 
     var windows: [Window] { columns.flatMap(\.windows) }
     var isEmpty: Bool { columns.isEmpty }
@@ -45,17 +57,32 @@ struct ScrollLockStrip<Window: Hashable>: Equatable {
         columns.append(Column(windows: [window], width: width))
     }
 
+    /// Puts `new` exactly where `old` was (same column, same width and height), for an app that
+    /// swaps one window for another (a launcher that becomes a document window and back).
+    mutating func replace(_ old: Window, with new: Window) {
+        guard !contains(new), let column = columnIndex(of: old),
+              let row = columns[column].windows.firstIndex(of: old) else { return }
+        columns[column].windows[row] = new
+        if let height = columns[column].heights.removeValue(forKey: old) {
+            columns[column].heights[new] = height
+        }
+        if columns[column].active == old { columns[column].active = new }
+        history = history.map { $0 == old ? new : $0 }
+        if focused == old { focused = new }
+    }
+
     mutating func remove(_ window: Window) {
         guard let index = columnIndex(of: window) else { return }
         let wasFocused = focused == window
-        columns[index].windows.removeAll { $0 == window }
-        columns[index].heights[window] = nil
-        if columns[index].windows.isEmpty {
-            columns.remove(at: index)
-        }
+        history.removeAll { $0 == window }
+        detach(window)
         if wasFocused {
-            // Focus the neighbour that took its place, like closing a tab.
-            focused = columns.isEmpty ? nil : columns[min(index, columns.count - 1)].windows.first
+            // Back to the window you were on before this one (open a window from column 5, close it,
+            // you're on 5 again); with no history, the neighbour that took its place.
+            focused = history.popLast() ?? (columns.isEmpty ? nil : columns[min(index, columns.count - 1)].entry)
+            if let focused, let column = columnIndex(of: focused), columns[column].isTabbed {
+                columns[column].active = focused
+            }
         }
     }
 
@@ -66,9 +93,20 @@ struct ScrollLockStrip<Window: Hashable>: Equatable {
         }
     }
 
+    private mutating func setFocused(_ window: Window?) {
+        if let window { focus(window) } else { focused = nil }
+    }
+
     mutating func focus(_ window: Window) {
         guard contains(window) else { return }
+        if let focused, focused != window {
+            history.removeAll { $0 == focused }
+            history.append(focused)
+            if history.count > 20 { history.removeFirst() }
+        }
+        history.removeAll { $0 == window }
         focused = window
+        if let index = columnIndex(of: window), columns[index].isTabbed { columns[index].active = window }
     }
 
     // MARK: - Moving focus
@@ -78,25 +116,29 @@ struct ScrollLockStrip<Window: Hashable>: Equatable {
     @discardableResult
     mutating func focusColumn(by offset: Int, wrapping: Bool = false) -> Window? {
         guard let index = focusedColumnIndex else {
-            focused = columns.first?.windows.first
+            setFocused(columns.first?.entry)
             return focused
         }
         let count = columns.count
         let target = wrapping ? ((index + offset) % count + count) % count : min(max(index + offset, 0), count - 1)
         if target != index {
-            focused = columns[target].windows.first
+            setFocused(columns[target].entry)
         }
         return focused
     }
 
-    /// Moves focus up or down inside the focused stack.
+    /// Moves focus up or down inside the focused stack, or to the previous or next tab (going round).
     @discardableResult
     mutating func focusInStack(by offset: Int) -> Window? {
         guard let focused, let index = columnIndex(of: focused),
               let row = columns[index].windows.firstIndex(of: focused)
         else { return self.focused }
         let windows = columns[index].windows
-        self.focused = windows[min(max(row + offset, 0), windows.count - 1)]
+        if columns[index].isTabbed {
+            setFocused(windows[((row + offset) % windows.count + windows.count) % windows.count])
+        } else {
+            setFocused(windows[min(max(row + offset, 0), windows.count - 1)])
+        }
         return self.focused
     }
 
@@ -159,7 +201,7 @@ struct ScrollLockStrip<Window: Hashable>: Equatable {
     @discardableResult
     mutating func stackColumn(_ from: Int, into target: Int) -> Bool {
         guard from != target, columns.indices.contains(from), columns.indices.contains(target),
-              let window = columns[from].windows.first, let bottom = columns[target].windows.last,
+              let window = columns[from].entry, let bottom = columns[target].windows.last,
               canStack(window, onto: bottom)
         else { return false }
         stack(window, onto: bottom, below: true, height: .half)
@@ -170,7 +212,7 @@ struct ScrollLockStrip<Window: Hashable>: Equatable {
     @discardableResult
     mutating func focusColumn(at index: Int) -> Window? {
         guard columns.indices.contains(index) else { return focused }
-        focused = columns[index].windows.first
+        setFocused(columns[index].entry)
         return focused
     }
 
@@ -184,7 +226,7 @@ struct ScrollLockStrip<Window: Hashable>: Equatable {
         guard let index = columnIndex(of: window) else { return }
         if height == .full {
             unstack(window)
-        } else if columns[index].windows.count > 1 {
+        } else if columns[index].isSplit {
             // The others share what's left, so 33% really leaves 67% to the rest.
             columns[index].heights = [window: height]
         }
@@ -193,7 +235,7 @@ struct ScrollLockStrip<Window: Hashable>: Equatable {
     /// ⌃⌥⇧R: switches a stacked window between a third and half of the column. (Taking it out of the
     /// stack is ⌃⌥S, so cycling never unstacks by surprise.)
     mutating func cycleHeight(of window: Window) -> StackHeight? {
-        guard let index = columnIndex(of: window), columns[index].windows.count > 1 else { return nil }
+        guard let index = columnIndex(of: window), columns[index].isSplit else { return nil }
         let fractions = heightFractions(of: columns[index])
         guard let row = columns[index].windows.firstIndex(of: window) else { return nil }
         let next: StackHeight = fractions[row] > 0.4 ? .third : .half
@@ -207,7 +249,7 @@ struct ScrollLockStrip<Window: Hashable>: Equatable {
         if columns[index].windows.count > 1 {
             unstack(window)
         } else if index > 0 {
-            guard columns[index - 1].windows.count < Self.maximumStack else { return }
+            guard !columns[index - 1].isTabbed, columns[index - 1].windows.count < Self.maximumStack else { return }
             detach(window) // Removes column `index`, so the one on its left keeps its index.
             insert(window, intoColumn: index - 1, at: columns[index - 1].windows.count, height: height)
         }
@@ -218,7 +260,7 @@ struct ScrollLockStrip<Window: Hashable>: Equatable {
         guard window != target, let targetIndex = columnIndex(of: target) else { return }
         guard let row = columns[targetIndex].windows.firstIndex(of: target) else { return }
         let sameColumn = columns[targetIndex].windows.contains(window)
-        guard sameColumn || columns[targetIndex].windows.count < Self.maximumStack else { return }
+        guard !columns[targetIndex].isTabbed, sameColumn || columns[targetIndex].windows.count < Self.maximumStack else { return }
 
         var position = below ? row + 1 : row
         if sameColumn, let current = columns[targetIndex].windows.firstIndex(of: window), current < position {
@@ -229,11 +271,107 @@ struct ScrollLockStrip<Window: Hashable>: Equatable {
         insert(window, intoColumn: newTargetIndex, at: position, height: height)
     }
 
+    /// The strip as the island's column bar shows it while `window` is dragged: without that window.
+    func without(_ window: Window) -> ScrollLockStrip {
+        var copy = self
+        copy.detach(window)
+        return copy
+    }
+
+    /// The island's column bar: `window` gets its own column at `gap` of the strip without it
+    /// (0 is before the first column), leaving its stack if it was in one.
+    mutating func place(_ window: Window, inGap gap: Int) {
+        guard let source = columnIndex(of: window) else { return }
+        let width = columns[source].width
+        detach(window)
+        columns.insert(Column(windows: [window], width: width), at: min(max(gap, 0), columns.count))
+    }
+
+    /// The island's column bar: `window` joins column `index` of the strip without it, at the
+    /// bottom, splitting the height. Returns whether it moved (a column holds three at most).
+    @discardableResult
+    mutating func place(_ window: Window, intoColumn index: Int) -> Bool {
+        var rest = without(window)
+        guard rest.columns.indices.contains(index), contains(window) else { return false }
+        if rest.columns[index].isTabbed {
+            rest.addTab(window, toColumn: index)
+            columns = rest.columns
+            return true
+        }
+        guard rest.columns[index].windows.count < Self.maximumStack else { return false }
+        rest.insert(window, intoColumn: index, at: rest.columns[index].windows.count, height: .half)
+        columns = rest.columns
+        return true
+    }
+
     /// Whether `window` can join the column holding `target`.
     func canStack(_ window: Window, onto target: Window) -> Bool {
         guard window != target, let index = columnIndex(of: target) else { return false }
         let column = columns[index]
+        guard !column.isTabbed else { return false }
         return column.windows.contains(window) || column.windows.count < Self.maximumStack
+    }
+
+    // MARK: - Tabs
+
+    /// Whether `window` can become a tab in the column holding `target`: a column on its own or
+    /// already tabbed, never a split stack.
+    func canTab(_ window: Window, onto target: Window) -> Bool {
+        guard window != target, let index = columnIndex(of: target) else { return false }
+        return !columns[index].isSplit && !columns[index].windows.contains(window)
+    }
+
+    /// Drop on a column's title bar: `window` becomes a tab of the column holding `target`, in front.
+    @discardableResult
+    mutating func tab(_ window: Window, onto target: Window) -> Bool {
+        guard canTab(window, onto: target), contains(window) else { return false }
+        detach(window)
+        guard let index = columnIndex(of: target) else { return false }
+        addTab(window, toColumn: index)
+        return true
+    }
+
+    /// ⌃⌥T: a window on its own becomes a tab of the column on its left; a tab leaves for its own
+    /// column, right after. Returns whether anything changed (not for a window in a split stack, or
+    /// with no column on its left that can take tabs).
+    @discardableResult
+    mutating func toggleTab(_ window: Window) -> Bool {
+        guard let index = columnIndex(of: window) else { return false }
+        if columns[index].isTabbed {
+            let width = columns[index].width
+            detach(window)
+            columns.insert(Column(windows: [window], width: width), at: index + 1)
+            return true
+        }
+        guard columns[index].windows.count == 1, index > 0, !columns[index - 1].isSplit else { return false }
+        detach(window) // Removes column `index`, so the one on its left keeps its index.
+        addTab(window, toColumn: index - 1)
+        return true
+    }
+
+    /// Arrange mode's T then ← or →: the window becomes a tab of the column on that side.
+    @discardableResult
+    mutating func tabIntoNeighbour(_ window: Window, toTheRight: Bool) -> Bool {
+        guard let index = columnIndex(of: window) else { return false }
+        let target = index + (toTheRight ? 1 : -1)
+        guard columns.indices.contains(target), let entry = columns[target].entry else { return false }
+        return tab(window, onto: entry)
+    }
+
+    /// Tabs front to back: the one in front, then the others by when you last used them, so the
+    /// window you were just on sits right behind (where macOS keeps it, too).
+    func tabOrder(of column: Column) -> [Window] {
+        guard column.isTabbed, let front = column.entry else { return column.windows }
+        let recency = Dictionary(history.enumerated().map { ($1, $0) }, uniquingKeysWith: max)
+        let rest = column.windows.filter { $0 != front }.sorted { (recency[$0] ?? -1) > (recency[$1] ?? -1) }
+        return [front] + rest
+    }
+
+    private mutating func addTab(_ window: Window, toColumn index: Int) {
+        columns[index].windows.append(window)
+        columns[index].isTabbed = true
+        columns[index].heights = [:]
+        columns[index].active = window
     }
 
     /// Takes a stacked window into its own column, right after the stack.
@@ -250,6 +388,7 @@ struct ScrollLockStrip<Window: Hashable>: Equatable {
     /// or the heights add up to more than the column, they are evened out or scaled to fit.
     func heightFractions(of column: Column) -> [Double] {
         let count = column.windows.count
+        if column.isTabbed { return Array(repeating: 1, count: count) } // Every tab is full height.
         guard count > 1 else { return [column.windows.first.flatMap { column.heights[$0]?.fraction } ?? 1] }
         let explicit = column.windows.map { column.heights[$0]?.fraction }
         let taken = explicit.compactMap { $0 }.reduce(0, +)
@@ -278,7 +417,8 @@ struct ScrollLockStrip<Window: Hashable>: Equatable {
     /// rest (each keeps at least a quarter). Returns the new height, or `nil` at the limit.
     @discardableResult
     mutating func stepHeight(of window: Window, taller: Bool) -> StackHeight? {
-        guard let index = columnIndex(of: window), let row = columns[index].windows.firstIndex(of: window) else { return nil }
+        guard let index = columnIndex(of: window), !columns[index].isTabbed,
+              let row = columns[index].windows.firstIndex(of: window) else { return nil }
         let count = columns[index].windows.count
         let current = heightFractions(of: columns[index])[row]
         let limit = 1 - 0.25 * Double(count - 1) + 0.001
@@ -294,13 +434,19 @@ struct ScrollLockStrip<Window: Hashable>: Equatable {
     // MARK: - Helpers
 
     private mutating func detach(_ window: Window) {
-        guard let index = columnIndex(of: window) else { return }
-        columns[index].windows.removeAll { $0 == window }
+        guard let index = columnIndex(of: window), let row = columns[index].windows.firstIndex(of: window) else { return }
+        columns[index].windows.remove(at: row)
         columns[index].heights[window] = nil
         if columns[index].windows.isEmpty {
             columns.remove(at: index)
         } else if columns[index].windows.count == 1 {
             columns[index].heights = [:]
+            columns[index].isTabbed = false
+            columns[index].active = nil
+        } else if columns[index].active == window {
+            // The tab you used before comes to the front, or the one that took its place.
+            let windows = columns[index].windows
+            columns[index].active = history.last { windows.contains($0) } ?? windows[min(row, windows.count - 1)]
         }
     }
 

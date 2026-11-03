@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let nativeSwitcher = NativeSwitcherGuard()
     private lazy var tiling = TilingEngine(preferences: preferences, hotKeys: hotKeys)
     private var updater: Updater?
+    private lazy var island = IslandController(preferences: preferences)
     private lazy var switcher = SwitcherController(
         preferences: preferences,
         screenRecording: screenRecording,
@@ -47,6 +48,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKeys.onAction = { [weak self] action in
             if action.isTiling { self?.tiling.handle(action) } else { self?.switcher.handle(action) }
         }
+        DragHandoff.shared.onChange = { [weak self] _ in self?.updateSwitcherActivation() }
+        DragHandoff.shared.onAction = { [weak self] action in self?.switcher.handle(action) }
+        DragHandoff.shared.start()
         statusMenu.refreshVisibility()
         updateSwitcherActivation()
 
@@ -75,6 +79,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
              preferences.floatsSystemApps, preferences.floatingApps, preferences.hidesFloatingApps)
         }) { [weak self] _ in
             self?.tiling.update()
+        }
+        island.services.notchDrop = tiling.notchDrop
+        island.update()
+        observeChanges(of: { [preferences] in
+            (preferences.islandEnabled, preferences.islandModules, preferences.islandApprovals,
+             preferences.islandNotifies, preferences.islandScreen,
+             (preferences.islandWatchesNewFiles, preferences.scrollLockEnabled))
+        }) { [weak self] _ in
+            self?.island.update()
         }
         observeChanges(of: { [preferences] in preferences.showsMenuBarIcon }) { [weak self] _ in
             self?.statusMenu.refreshVisibility()
@@ -111,9 +124,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let frontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? ""
         let frontmostKeepsShortcut = preferences.bundleIDs(for: .leaveShortcut).contains(frontmost)
+        // Mid-drag the hot key would only fire after the drop, so DragHandoff catches ⌘⇥ instead.
         if permission.isGranted && preferences.replacesNativeSwitcher && !frontmostKeepsShortcut {
             nativeSwitcher.disableNativeSwitcher()
-            hotKeys.register()
+            if DragHandoff.shared.isDragging { hotKeys.unregister() } else { hotKeys.register() }
         } else {
             hotKeys.unregister()
             nativeSwitcher.restoreNativeSwitcher()
@@ -147,6 +161,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appearance = preview.appearance
         switch preview.screen {
         case .onboarding: onboardingWindow.show(appearance: appearance)
+        case .island:
+            island.update()
+            if preview.islandOption == "columns" || preview.islandOption == "stack" {
+                // Four running apps stand in for the strip's columns.
+                let pids = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }.map(\.processIdentifier)
+                let columns = pids.prefix(4).map { NotchDrop.Column(apps: [$0]) }
+                let drop = NotchDrop()
+                island.services.notchDrop = drop
+                drop.preview(NotchDrop.State(
+                    columns: columns, dragged: pids.last ?? 0,
+                    target: preview.islandOption == "stack" ? .column(2) : .gap(2)
+                ))
+            } else if let row = Self.previewRow(preview.islandOption) {
+                if row.focus != nil { island.services.focus.start() }
+                island.preview(.agents(row))
+            } else {
+                island.previewOpen(tab: preview.islandTab ?? .agents)
+            }
         case .switcher:
             // Throwaway settings, so the preview never changes the real ones.
             let previewDefaults = UserDefaults(suiteName: "CmdTab.DesignPreview") ?? .standard
@@ -183,4 +215,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static var isRunningUnitTests: Bool {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
+
+    #if DEBUG
+    /// `island:dark:agents|everything|waiting`: the closed island with made-up sessions.
+    private static func previewRow(_ option: String) -> AgentsRow? {
+        func session(_ kind: AgentKind, _ state: AgentState) -> AgentSession {
+            AgentSession(id: kind.rawValue, kind: kind, project: "cmdtab", detail: nil, state: state, since: .now, pid: nil)
+        }
+        let both: [AgentsRow.Mark] = [.init(kind: .claude, needsYou: false), .init(kind: .codex, needsYou: false)]
+        switch option {
+        case "agents": return AgentsRow(marks: both, waiting: nil, primary: session(.claude, .working), percent: 62)
+        case "everything":
+            return AgentsRow(marks: both, waiting: nil, primary: session(.claude, .working), percent: 62, withMusic: true, focus: .focus)
+        case "waiting":
+            return AgentsRow(
+                marks: [.init(kind: .codex, needsYou: true), .init(kind: .claude, needsYou: false)],
+                waiting: session(.codex, .needsYou), primary: session(.codex, .needsYou), percent: 62, withMusic: true
+            )
+        default: return nil
+        }
+    }
+    #endif
 }

@@ -24,6 +24,10 @@
 	<string>public.app-category.utilities</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>The island shows a moment when your headphones connect, with their battery.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>The island shows your next meeting five minutes before it starts, with a Join button. Events stay on your Mac.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Yuri Miguel</string>
 	<key>SUEnableAutomaticChecks</key>

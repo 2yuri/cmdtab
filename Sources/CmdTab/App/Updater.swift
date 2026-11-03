@@ -52,11 +52,11 @@ final class Updater: NSObject {
 extension Updater: SPUUpdaterDelegate {
     nonisolated func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
         let version = item.displayVersionString
-        MainActor.assumeIsolated { found(version) }
+        Task { @MainActor in self.found(version) }
     }
 
     nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
-        MainActor.assumeIsolated { found(nil) }
+        Task { @MainActor in self.found(nil) }
     }
 }
 

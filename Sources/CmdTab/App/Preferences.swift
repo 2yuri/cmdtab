@@ -74,6 +74,16 @@ final class Preferences {
         static let dimsOtherWindows = "dimsOtherWindows"
         static let dimAmount = "dimAmount"
         static let rememberedSizes = "rememberedSizes"
+        static let islandEnabled = "islandEnabled"
+        static let islandOpensOnHover = "islandOpensOnHover"
+        static let islandShowsLimit = "islandShowsLimit"
+        static let islandScreen = "islandScreen"
+        static let islandModules = "islandModules"
+        static let islandApprovals = "islandApprovals"
+        static let islandNotifies = "islandNotifies"
+        static let islandCities = "islandCities"
+        static let islandWeatherPlace = "islandWeatherPlace"
+        static let islandWatchesNewFiles = "islandWatchesNewFiles"
 
         static let all = [
             spaceScope, showsMinimizedWindows, showsHiddenAppWindows, switcherSize,
@@ -81,6 +91,8 @@ final class Preferences {
             previewsSelectedWindow, legacyShowsWindowPreviews,
             scrollLockEnabled, defaultColumnWidth, defaultStackHeight, centreMode, tilingPadding, tilingGap,
             keepsWindowsOffEdges, animatesScrolling, animationSpeed, wrapsAround, floatsSystemApps, floatingApps, hidesFloatingApps, legacyStacksByDragging, dragToStack, arrangePreviews, dimsOtherWindows, dimAmount, rememberedSizes,
+            islandEnabled, islandOpensOnHover, islandShowsLimit, islandScreen, islandModules, islandApprovals, islandNotifies,
+            islandCities, islandWeatherPlace, islandWatchesNewFiles,
         ]
     }
 
@@ -149,6 +161,44 @@ final class Preferences {
         didSet { defaults.set(try? JSONEncoder().encode(rememberedSizes), forKey: Key.rememberedSizes) }
     }
 
+    // MARK: Island
+
+    /// The live strip in the notch (a pill under the menu bar on screens without one).
+    var islandEnabled: Bool { didSet { defaults.set(islandEnabled, forKey: Key.islandEnabled) } }
+    /// Off: the island opens with a click.
+    var islandOpensOnHover: Bool { didSet { defaults.set(islandOpensOnHover, forKey: Key.islandOpensOnHover) } }
+    /// While an agent works, the closed island shows how much of its session limit is used.
+    var islandShowsLimit: Bool { didSet { defaults.set(islandShowsLimit, forKey: Key.islandShowsLimit) } }
+    var islandScreen: IslandScreen { didSet { defaults.set(islandScreen.rawValue, forKey: Key.islandScreen) } }
+    /// Tabs in order, each on or off. Every module starts off.
+    var islandModules: [IslandModuleSetting] {
+        didSet { defaults.set(try? JSONEncoder().encode(islandModules), forKey: Key.islandModules) }
+    }
+    /// Claude Code asks CmdTab before showing its own permission prompt.
+    var islandApprovals: Bool { didSet { defaults.set(islandApprovals, forKey: Key.islandApprovals) } }
+    /// The island grows for a moment when an agent finishes or needs you.
+    var islandNotifies: Bool { didSet { defaults.set(islandNotifies, forKey: Key.islandNotifies) } }
+
+    /// World clock cities, in order. The first two show beside the notch when the island is open.
+    var islandCities: [WorldCity] {
+        didSet { defaults.set(try? JSONEncoder().encode(islandCities), forKey: Key.islandCities) }
+    }
+    /// The city weather is asked for; `nil` until you pick one.
+    var islandWeatherPlace: WeatherPlace? {
+        didSet { defaults.set(try? JSONEncoder().encode(islandWeatherPlace), forKey: Key.islandWeatherPlace) }
+    }
+    /// New downloads and screenshots land on the Shelf.
+    var islandWatchesNewFiles: Bool { didSet { defaults.set(islandWatchesNewFiles, forKey: Key.islandWatchesNewFiles) } }
+
+    func isIslandModuleOn(_ module: IslandModule) -> Bool {
+        islandEnabled && islandModules.contains { $0.module == module && $0.isOn }
+    }
+
+    /// The tabs shown when the island opens, in the user's order.
+    var islandTabs: [IslandModule] {
+        islandModules.filter { $0.isOn && $0.module.hasTab && IslandModule.available.contains($0.module) }.map(\.module)
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         spaceScope = Self.enumValue(defaults, Key.spaceScope, default: .currentSpace)
@@ -195,6 +245,21 @@ final class Preferences {
         dimAmount = defaults.object(forKey: Key.dimAmount) as? Double ?? 0.4
         rememberedSizes = defaults.data(forKey: Key.rememberedSizes)
             .flatMap { try? JSONDecoder().decode([RememberedSize].self, from: $0) } ?? []
+        islandEnabled = Self.boolValue(defaults, Key.islandEnabled, default: false)
+        islandOpensOnHover = Self.boolValue(defaults, Key.islandOpensOnHover, default: true)
+        islandShowsLimit = Self.boolValue(defaults, Key.islandShowsLimit, default: true)
+        islandScreen = Self.enumValue(defaults, Key.islandScreen, default: .builtIn)
+        islandModules = IslandModuleSetting.normalized(
+            defaults.data(forKey: Key.islandModules)
+                .flatMap { try? JSONDecoder().decode([IslandModuleSetting].self, from: $0) } ?? []
+        )
+        islandApprovals = Self.boolValue(defaults, Key.islandApprovals, default: false)
+        islandNotifies = Self.boolValue(defaults, Key.islandNotifies, default: true)
+        islandCities = defaults.data(forKey: Key.islandCities)
+            .flatMap { try? JSONDecoder().decode([WorldCity].self, from: $0) } ?? [.local]
+        islandWeatherPlace = defaults.data(forKey: Key.islandWeatherPlace)
+            .flatMap { try? JSONDecoder().decode(WeatherPlace.self, from: $0) }
+        islandWatchesNewFiles = Self.boolValue(defaults, Key.islandWatchesNewFiles, default: true)
     }
 
     // MARK: Remembered sizes
@@ -276,6 +341,16 @@ final class Preferences {
         dimsOtherWindows = fresh.dimsOtherWindows
         dimAmount = fresh.dimAmount
         rememberedSizes = fresh.rememberedSizes
+        islandEnabled = fresh.islandEnabled
+        islandOpensOnHover = fresh.islandOpensOnHover
+        islandShowsLimit = fresh.islandShowsLimit
+        islandScreen = fresh.islandScreen
+        islandModules = fresh.islandModules
+        islandApprovals = fresh.islandApprovals
+        islandNotifies = fresh.islandNotifies
+        islandCities = fresh.islandCities
+        islandWeatherPlace = fresh.islandWeatherPlace
+        islandWatchesNewFiles = fresh.islandWatchesNewFiles
     }
 
     private static func boolValue(_ defaults: UserDefaults, _ key: String, default value: Bool) -> Bool {

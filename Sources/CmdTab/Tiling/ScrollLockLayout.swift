@@ -8,7 +8,13 @@ struct ScrollLockLayout<Window: Hashable> {
         var padding: CGFloat
         var gap: CGFloat
         var centreMode: CentreMode
+        /// How much more of each tab behind shows past the one in front of it.
+        var tabPeek: CGFloat = 16
     }
+
+    /// Tabs further back than this sit right behind the last one shown, so many tabs never squeeze the
+    /// one in front.
+    static var maximumPeeks: Int { 4 }
 
     struct Result {
         var frames: [Window: CGRect]
@@ -93,6 +99,20 @@ struct ScrollLockLayout<Window: Hashable> {
             }
             let columnFrame = CGRect(x: columnX, y: usable.minY, width: width, height: usable.height)
             columnFrames.append(columnFrame)
+
+            if column.isTabbed {
+                // The tab in front is the narrowest; each one behind shows `tabPeek` more on the right.
+                let order = strip.tabOrder(of: column)
+                let steps = min(order.count - 1, Self.maximumPeeks)
+                for (depth, window) in order.enumerated() {
+                    let inset = min(CGFloat(max(steps - depth, 0)) * options.tabPeek, width / 2)
+                    frames[window] = Self.pixelAligned(CGRect(x: columnX, y: usable.minY, width: width - inset, height: usable.height))
+                    if let slideX {
+                        slideFrames[window] = Self.pixelAligned(CGRect(x: slideX, y: usable.minY, width: width - inset, height: usable.height))
+                    }
+                }
+                continue
+            }
 
             var y = usable.minY
             let fractions = strip.heightFractions(of: column)

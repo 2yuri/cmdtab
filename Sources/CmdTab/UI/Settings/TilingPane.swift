@@ -90,7 +90,7 @@ struct TilingPane: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Stack by dragging")
-                    Text("Drop a window on the middle of another column to share its height, or on a column's side to move it there. At the screen's edge it joins the next column. ⌃⌥S always stacks.")
+                    Text("Drop a window on the middle of another column to share its height, on its title bar to make it a tab, or on a column's side to move it there. At the screen's edge it joins the next column. ⌃⌥S always stacks, ⌃⌥T always tabs.")
                         .font(.caption).foregroundStyle(.secondary)
                     Picker("Stack by dragging", selection: $preferences.dragToStack) {
                         ForEach(DragToStack.allCases, id: \.self) { Text($0.label).tag($0) }
@@ -236,7 +236,13 @@ struct TilingPane: View {
                     Text("Stack or unstack")
                     Text("Puts the focused window under the column on its left. Press again to take it out. Or just drag one window onto another.")
                 }
-                LabeledContent("Focus within a stack") { KeyCaps(keys: ["⌃", "⌥", "↑", "↓"]) }
+                LabeledContent {
+                    KeyCaps(keys: ["⌃", "⌥", "T"])
+                } label: {
+                    Text("Tab or untab")
+                    Text("Makes the focused window a tab of the column on its left: one window at a time, full height, the others peeking out behind. Press again to take it out.")
+                }
+                LabeledContent("Focus within a stack, or switch tabs") { KeyCaps(keys: ["⌃", "⌥", "↑", "↓"]) }
             } header: {
                 Text("Keys")
             } footer: {

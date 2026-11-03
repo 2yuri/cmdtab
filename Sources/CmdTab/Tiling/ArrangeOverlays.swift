@@ -17,6 +17,8 @@ final class ArrangeHUD {
 
         var parts: [Part]
         var width: Double // Share of the screen, so tiles keep the columns' proportions.
+        /// How many tabs the column holds (the parts show only the one in front), or 1.
+        var tabs = 1
 
         var icon: NSImage? { parts.first?.icon }
     }
@@ -64,12 +66,13 @@ final class ArrangeHUD {
     var isVisible: Bool { panel.isVisible }
 
     func show(
-        _ tiles: [Tile], focused: Int?, stackPrompt: Bool = false, showsHeight: Bool = false,
+        _ tiles: [Tile], focused: Int?, stackPrompt: Bool = false, tabPrompt: Bool = false, showsHeight: Bool = false,
         note: String? = nil, on screen: NSScreen
     ) {
         view.tiles = tiles
         view.focused = focused
         view.stackPrompt = stackPrompt
+        view.tabPrompt = tabPrompt
         view.showsHeight = showsHeight
         view.note = note
         let visible = screen.visibleFrame
@@ -127,11 +130,26 @@ final class ArrangeHUD {
     }
 
     /// The Arrange mode action for a key, or `nil` to ignore it. One key per command.
-    /// - Parameter stacking: Stack mode (after S): ← → stack with that side, D unstacks, S or esc go back.
-    nonisolated static func action(keyCode: Int, flags: NSEvent.ModifierFlags, stacking: Bool = false) -> HotKeyCenter.Action? {
+    /// - Parameters:
+    ///   - stacking: Stack mode (after S): ← → stack with that side, D unstacks, S or esc go back.
+    ///   - tabbing: Tab mode (after T): ← → tab with that side, D takes it out, T or esc go back.
+    nonisolated static func action(
+        keyCode: Int, flags: NSEvent.ModifierFlags, stacking: Bool = false, tabbing: Bool = false
+    ) -> HotKeyCenter.Action? {
         if flags.contains(.control) { return nil }
         let shift = flags.contains(.shift), option = flags.contains(.option), command = flags.contains(.command)
         let plain = !shift && !option && !command
+
+        if tabbing {
+            guard plain else { return nil }
+            switch keyCode {
+            case kVK_LeftArrow: return .arrangeTabLeft
+            case kVK_RightArrow: return .arrangeTabRight
+            case kVK_ANSI_D: return .arrangeUnstack
+            case kVK_ANSI_T, kVK_Escape: return .arrangeTab // Back to the normal keys.
+            default: return nil
+            }
+        }
 
         if stacking {
             guard plain else { return nil }
@@ -156,6 +174,7 @@ final class ArrangeHUD {
             if shift && !option && !command { return up ? .arrangeTaller : .arrangeShorter }
             return plain ? (up ? .focusStackUp : .focusStackDown) : nil
         case kVK_ANSI_S: return plain ? .arrangeStack : nil
+        case kVK_ANSI_T: return plain ? .arrangeTab : nil
         case kVK_Escape: return .arrangeDone
         default: return nil
         }
@@ -171,6 +190,8 @@ private final class ArrangeHUDView: NSView {
     var focused: Int? { didSet { needsDisplay = true } }
     /// After S: the hints row asks which side to stack with.
     var stackPrompt = false { didSet { needsDisplay = true } }
+    /// After T: the hints row asks which side to tab with.
+    var tabPrompt = false { didSet { needsDisplay = true } }
     /// Shown in the header for a moment when a key had nothing to do.
     var note: String? { didSet { needsDisplay = true } }
     var onReorder: ((Int, Int) -> Void)?
@@ -187,7 +208,7 @@ private final class ArrangeHUDView: NSView {
         let keyCode = Int(event.keyCode)
         let isArrow = [kVK_LeftArrow, kVK_RightArrow, kVK_UpArrow, kVK_DownArrow].contains(keyCode)
         guard !event.isARepeat || isArrow else { return }
-        if let action = ArrangeHUD.action(keyCode: keyCode, flags: event.modifierFlags, stacking: stackPrompt) {
+        if let action = ArrangeHUD.action(keyCode: keyCode, flags: event.modifierFlags, stacking: stackPrompt, tabbing: tabPrompt) {
             onKey?(action)
         }
     }
@@ -202,12 +223,17 @@ private final class ArrangeHUDView: NSView {
     private static let footer: CGFloat = 38
     private var normalHints: [(key: String, label: String)] {
         [("← →", "Focus"), ("⌥← ⌥→", "Move"), ("⌘← ⌘→", "To the start / end"), ("⇧← ⇧→", "Width"),
-         ("⇧↑ ⇧↓", "Height"), ("S", "Stack"), ("esc", "Done")]
+         ("⇧↑ ⇧↓", "Height"), ("S", "Stack"), ("T", "Tab"), ("esc", "Done")]
     }
     private static let stackHints: [(key: String, label: String)] = [
         ("← →", "Stack with the left / right column"), ("D", "Unstack"), ("S", "Back"), ("esc", "Back"),
     ]
-    private var hints: [(key: String, label: String)] { stackPrompt ? Self.stackHints : normalHints }
+    private static let tabHints: [(key: String, label: String)] = [
+        ("← →", "Tab with the left / right column"), ("D", "Take out of tabs"), ("T", "Back"), ("esc", "Back"),
+    ]
+    private var hints: [(key: String, label: String)] {
+        tabPrompt ? Self.tabHints : stackPrompt ? Self.stackHints : normalHints
+    }
 
     private var dragging: (index: Int, location: CGPoint)?
     private var dropIndex: Int?
@@ -375,6 +401,22 @@ private final class ArrangeHUDView: NSView {
             .foregroundColor: (isFocused ? volt : NSColor.white.withAlphaComponent(0.7)).withAlphaComponent(alpha),
         ])
         number.draw(at: CGPoint(x: rect.midX - number.size().width / 2, y: rect.minY + 40))
+        drawTabCount(index: index, in: rect, alpha: alpha)
+    }
+
+    /// "3" in a small pill at the top right of a column that holds tabs.
+    private func drawTabCount(index: Int, in rect: CGRect, alpha: CGFloat) {
+        let tabs = tiles[index].tabs
+        guard tabs > 1 else { return }
+        let text = NSAttributedString(string: "\(tabs)", attributes: [
+            .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .bold),
+            .foregroundColor: (NSColor(named: "Ink") ?? .black).withAlphaComponent(alpha),
+        ])
+        let size = text.size()
+        let pill = CGRect(x: rect.maxX - size.width - 18, y: rect.minY + 6, width: size.width + 10, height: size.height + 4)
+        (NSColor(named: "Volt") ?? .systemGreen).withAlphaComponent(alpha).setFill()
+        NSBezierPath(roundedRect: pill, xRadius: 5, yRadius: 5).fill()
+        text.draw(at: CGPoint(x: pill.minX + 5, y: pill.minY + 2))
     }
 
     /// Snapshots filling the tile (cropped to fit): one per window, stacked like the column, each with
@@ -417,6 +459,7 @@ private final class ArrangeHUDView: NSView {
         NSBezierPath(roundedRect: badge, xRadius: 7, yRadius: 7).fill()
         tiles[index].icon?.draw(in: CGRect(x: badge.minX + 3, y: badge.minY + 3, width: 18, height: 18), from: .zero, operation: .sourceOver, fraction: alpha, respectFlipped: true, hints: nil)
         number.draw(at: CGPoint(x: badge.minX + 26, y: badge.minY + 4))
+        drawTabCount(index: index, in: rect, alpha: alpha)
     }
 
     private func keyText(_ string: String) -> NSAttributedString {

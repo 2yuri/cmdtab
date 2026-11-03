@@ -5,4 +5,5 @@ import os
 enum Log {
     static let switcher = Logger(subsystem: "dev.yuri.CmdTab", category: "Switcher")
     static let activation = Logger(subsystem: "dev.yuri.CmdTab", category: "Activation")
+    static let island = Logger(subsystem: "dev.yuri.CmdTab", category: "Island")
 }

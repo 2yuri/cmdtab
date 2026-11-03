@@ -1,0 +1,50 @@
+import Foundation
+
+/// Everything the island shows, started and stopped with its module so a module that's off costs
+/// nothing.
+@MainActor
+final class IslandServices {
+    let agents = AgentMonitor()
+    let music = NowPlayingMonitor()
+    let shelf = ShelfStore()
+    let focus = FocusTimer()
+    let calendar = CalendarStore()
+    let weather = WeatherService()
+    let meetings = MeetingWatcher()
+    let moments = MomentsMonitor()
+    /// CPU, memory and battery for the Overview, sampled only while it's open.
+    let stats = SystemStats()
+    let windowDrop = WindowDropWatcher()
+    /// Tiling's: a tiled window dragged up to the island.
+    var notchDrop: NotchDrop?
+    let windows: IslandWindowSource
+
+    init(preferences: Preferences) {
+        windows = IslandWindowSource(preferences: preferences)
+    }
+
+    func update(_ preferences: Preferences) {
+        let on = { preferences.isIslandModuleOn($0) }
+        // The Overview shows agents and music too, so it keeps their readers running.
+        if on(.agents) || on(.overview) {
+            agents.notifies = preferences.islandNotifies
+            agents.start()
+        } else {
+            agents.stop()
+        }
+        agents.setApprovals(on(.agents) && preferences.islandApprovals)
+        if on(.music) || on(.overview) { music.start() } else { music.stop() }
+        if !on(.overview) { stats.stop() }
+        shelf.setWatchesNewFiles(on(.shelf) && preferences.islandWatchesNewFiles)
+        if on(.meetings) { meetings.start() } else { meetings.stop() }
+        if on(.moments) { moments.start() } else { moments.stop() }
+        if !on(.focus) { focus.reset() }
+        if !on(.calendar) { calendar.stop() }
+        if !on(.weather) { weather.clear() }
+        // Dragging a window to the island arranges it like Tiling would: on with Windows, off while
+        // Tiling places the windows itself.
+        windowDrop.screenPadding = { preferences.screenPadding }
+        if on(.windows) && !preferences.scrollLockEnabled { windowDrop.start() } else { windowDrop.stop() }
+        notchDrop?.isEnabled = preferences.islandEnabled && on(.windows) && preferences.scrollLockEnabled
+    }
+}
