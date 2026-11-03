@@ -38,26 +38,36 @@ struct WindowsTab: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-            let windows = shown
-            if windows.isEmpty {
-                Text(query.isEmpty ? "No windows on this desktop" : "No windows match")
-                    .font(.system(size: 13))
-                    .foregroundStyle(IslandStyle.secondary)
-                    .padding(.vertical, 8)
-            } else {
-                let rows = VStack(spacing: 2) {
-                    ForEach(Array(windows.enumerated()), id: \.element.windowID) { index, window in
-                        WindowRow(window: window, isCurrent: index == 0 && query.isEmpty) { source.activate(window) }
-                    }
-                }
-                if windows.count > 6 {
-                    ScrollView { rows }.scrollIndicators(.never).frame(height: 6 * 46)
-                } else {
-                    rows
-                }
-            }
+            WindowList(windows: shown, query: query) { source.activate($0) }
         }
         .onAppear { windows = source.windows() }
+    }
+}
+
+private struct WindowList: View {
+    let windows: [SwitcherWindow]
+    let query: String
+    let open: (SwitcherWindow) -> Void
+
+    var body: some View {
+        if windows.isEmpty {
+            Text(query.isEmpty ? "No windows on this desktop" : "No windows match")
+                .font(.system(size: 13))
+                .foregroundStyle(IslandStyle.secondary)
+                .padding(.vertical, 8)
+        } else if windows.count > 6 {
+            ScrollView { rows }.scrollIndicators(.never).frame(height: 6 * 46)
+        } else {
+            rows
+        }
+    }
+
+    private var rows: some View {
+        VStack(spacing: 2) {
+            ForEach(Array(windows.enumerated()), id: \.element.windowID) { index, window in
+                WindowRow(window: window, isCurrent: index == 0 && query.isEmpty) { open(window) }
+            }
+        }
     }
 }
 
