@@ -24,6 +24,7 @@ struct ExpandedView: View {
                 case .focus: FocusTab(timer: services.focus)
                 case .clock: ClockTab(preferences: preferences)
                 case .weather: WeatherTab(preferences: preferences, weather: services.weather)
+                case .effects: EffectsTab(preferences: preferences, weather: services.weather, effects: services.effects)
                 default: EmptyView()
                 }
             }

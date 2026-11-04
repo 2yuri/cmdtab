@@ -26,6 +26,8 @@ enum IslandContent: Equatable {
     /// A Pomodoro phase just ran out: what's next.
     case focusEnded(FocusCycle.Phase)
     case expanded(IslandModule)
+    /// Nothing else going on, and rain, snow or fireflies in the wings.
+    case effect(EffectKind)
 
     /// Grown states get a taller shape with content under the notch.
     var isGrown: Bool {
@@ -53,6 +55,7 @@ enum IslandContent: Equatable {
         var moment: Moment?
         var focusPhase: FocusCycle.Phase?
         var focusEnded: FocusCycle.Phase?
+        var effect: EffectKind?
         var now = Date.now
     }
 
@@ -77,6 +80,7 @@ enum IslandContent: Equatable {
         if inputs.agentsOn, let row = AgentsRow(inputs) { return .agents(row) }
         if let phase = inputs.focusPhase { return .focus(phase) }
         if inputs.musicPlaying { return .music }
+        if let effect = inputs.effect { return .effect(effect) }
         return .idle
     }
 }
@@ -90,7 +94,7 @@ enum IslandLayout {
     static let expandedCornerRadius: CGFloat = 30
 
     /// The open island never grows past this; longer lists scroll.
-    static let maximumExpandedHeight: CGFloat = 460
+    static let maximumExpandedHeight: CGFloat = 540
     /// The widest the island ever gets (any tab), so its fixed panel always holds it, centred.
     static var maximumWidth: CGFloat { IslandModule.allCases.map(width(of:)).max() ?? 680 }
 
@@ -107,7 +111,7 @@ enum IslandLayout {
     static func size(of content: IslandContent, notch: CGSize, tabHeights: [IslandModule: CGFloat] = [:]) -> CGSize {
         switch content {
         case .idle: notch
-        case .music, .focus: CGSize(width: notch.width + 2 * wing, height: notch.height)
+        case .music, .focus, .effect: CGSize(width: notch.width + 2 * wing, height: notch.height)
         case let .agents(row): CGSize(width: notch.width + 2 * max(wing, row.wing), height: notch.height)
         case .moment: CGSize(width: notch.width + 2 * (wing + 30), height: notch.height)
         case .finished, .arrival, .meeting, .focusEnded: CGSize(width: max(420, notch.width + 2 * wing), height: notch.height + 64)

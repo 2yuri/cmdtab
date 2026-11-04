@@ -158,6 +158,9 @@ small pill under the menu bar.
 - **Focus.** A Pomodoro timer: 25/5, 50/10 or your own, four rounds to a set, ticking beside the notch.
 - **World clock and Weather.** Two cities beside the notch, the rest in a tab; your city's weather,
   with only the city name sent to Open-Meteo.
+- **Effects.** Rain, snow or fireflies in the island's wings, on the screen or both, picked in its
+  own tab with a live preview: amount, size, speed, opacity, direction and the fireflies' colour.
+  Weather makes it follow the sky in your city. Pauses on battery and in Low Power Mode.
 - **Moments.** A few seconds when headphones connect (with their battery), the charger goes in, or
   the battery runs low.
 
@@ -263,7 +266,7 @@ Signing uses the team in `project.yml`. To build with your own Apple ID, pass yo
 | Focusing | Brings the exact window forward, unminimizing or unhiding it when needed. |
 | Previews | ScreenCaptureKit snapshots, only while the panel is open, selected window first. |
 | Tiling | Event-driven: Accessibility notifications (window opened, closed, focused, moved) and ⌃⌥ hot keys. Windows are moved through Accessibility; slides are paced by the display, each app on its own queue. Columns out of view are parked just past the right edge of the screen. The scroll tap is switched on only while ⌃⌥ is held. |
-| Island | One panel over the notch that never changes size; only the shape inside animates, and the spinning rings and music bars are Core Animation, so they cost no CPU. Agents are read on file-system events in `~/.claude` and `~/.codex`. Approvals come from a Claude Code hook through a local socket in `~/Library/Application Support/CmdTab`. Now Playing comes from the system's media service through a small bridge, since macOS answers only Apple's own processes. Calendar uses EventKit; Weather is one Open-Meteo request every 30 minutes. |
+| Island | One panel over the notch that never changes size; only the shape inside animates, and the spinning rings and music bars are Core Animation, so they cost no CPU. Agents are read on file-system events in `~/.claude` and `~/.codex`. Approvals come from a Claude Code hook through a local socket in `~/Library/Application Support/CmdTab`. Now Playing comes from the system's media service through a small bridge, since macOS answers only Apple's own processes. Calendar uses EventKit; Weather is one Open-Meteo request every 30 minutes. Effects are Core Animation particle emitters, so the GPU moves every drop and nothing runs per frame; on the screen they sit in a panel that never takes a click. |
 | Updates | [Sparkle](https://sparkle-project.org) fetches `appcast.xml` from the latest GitHub release once a day. An update installs only if its EdDSA signature matches the key in the app and it carries the same Developer ID. No system profile or other data is sent. |
 
 Telling which Space a window is on and focusing one specific window has no public API, so cmdtab uses a

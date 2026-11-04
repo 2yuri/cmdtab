@@ -21,7 +21,7 @@ enum IslandScreen: String, CaseIterable {
 
 /// One thing the island can show. Most are tabs; Moments only ever show while closed.
 enum IslandModule: String, Codable, CaseIterable, Identifiable {
-    case overview, agents, music, shelf, windows, calendar, focus, meetings, clock, weather, moments
+    case overview, agents, music, shelf, windows, calendar, focus, meetings, clock, weather, effects, moments
 
     var id: Self { self }
 
@@ -37,6 +37,7 @@ enum IslandModule: String, Codable, CaseIterable, Identifiable {
         case .meetings: "Meetings"
         case .clock: "World clock"
         case .weather: "Weather"
+        case .effects: "Effects"
         case .moments: "Moments"
         }
     }
@@ -53,6 +54,7 @@ enum IslandModule: String, Codable, CaseIterable, Identifiable {
         case .meetings: "Your next event five minutes before, with Join. Asks for Calendar access."
         case .clock: "Two cities beside the notch when it opens, every city in its tab."
         case .weather: "Your city's weather. Uses the network: one request every 30 minutes."
+        case .effects: "Rain, snow or fireflies in the island, and on the screen if you like. Pick them in its tab."
         case .moments: "AirPods, charger and timers, for a few seconds when they happen."
         }
     }
@@ -70,6 +72,7 @@ enum IslandModule: String, Codable, CaseIterable, Identifiable {
         case .meetings: "bell"
         case .clock: "globe"
         case .weather: "cloud.sun"
+        case .effects: "snowflake"
         case .moments: "sparkle"
         }
     }

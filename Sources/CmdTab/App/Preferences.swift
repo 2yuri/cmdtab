@@ -84,6 +84,15 @@ final class Preferences {
         static let islandCities = "islandCities"
         static let islandWeatherPlace = "islandWeatherPlace"
         static let islandWatchesNewFiles = "islandWatchesNewFiles"
+        static let islandEffect = "islandEffect"
+        static let islandEffectPlacement = "islandEffectPlacement"
+        static let islandEffectAmount = "islandEffectAmount"
+        static let islandEffectPausesOnBattery = "islandEffectPausesOnBattery"
+        static let islandEffectAngle = "islandEffectAngle"
+        static let islandEffectSpeed = "islandEffectSpeed"
+        static let islandEffectSize = "islandEffectSize"
+        static let islandEffectOpacity = "islandEffectOpacity"
+        static let islandEffectFireflyColor = "islandEffectFireflyColor"
 
         static let all = [
             spaceScope, showsMinimizedWindows, showsHiddenAppWindows, switcherSize,
@@ -93,6 +102,8 @@ final class Preferences {
             keepsWindowsOffEdges, animatesScrolling, animationSpeed, wrapsAround, floatsSystemApps, floatingApps, hidesFloatingApps, legacyStacksByDragging, dragToStack, arrangePreviews, dimsOtherWindows, dimAmount, rememberedSizes,
             islandEnabled, islandOpensOnHover, islandShowsLimit, islandScreen, islandModules, islandApprovals, islandNotifies,
             islandCities, islandWeatherPlace, islandWatchesNewFiles,
+            islandEffect, islandEffectPlacement, islandEffectAmount, islandEffectPausesOnBattery, islandEffectAngle,
+            islandEffectSpeed, islandEffectSize, islandEffectOpacity, islandEffectFireflyColor,
         ]
     }
 
@@ -189,6 +200,28 @@ final class Preferences {
     }
     /// New downloads and screenshots land on the Shelf.
     var islandWatchesNewFiles: Bool { didSet { defaults.set(islandWatchesNewFiles, forKey: Key.islandWatchesNewFiles) } }
+    /// Rain, snow or fireflies on the island (and the screen); off by default.
+    var islandEffect: IslandEffect { didSet { defaults.set(islandEffect.rawValue, forKey: Key.islandEffect) } }
+    var islandEffectPlacement: EffectPlacement {
+        didSet { defaults.set(islandEffectPlacement.rawValue, forKey: Key.islandEffectPlacement) }
+    }
+    /// 0…1: fewer to more.
+    var islandEffectAmount: Double { didSet { defaults.set(islandEffectAmount, forKey: Key.islandEffectAmount) } }
+    /// Degrees from straight down for rain and snow; positive slants to the right.
+    var islandEffectAngle: Double { didSet { defaults.set(islandEffectAngle, forKey: Key.islandEffectAngle) } }
+    /// 0…1: smaller to bigger.
+    var islandEffectSize: Double { didSet { defaults.set(islandEffectSize, forKey: Key.islandEffectSize) } }
+    /// 0…1: slower to faster.
+    var islandEffectSpeed: Double { didSet { defaults.set(islandEffectSpeed, forKey: Key.islandEffectSpeed) } }
+    /// 0…1: fainter to stronger.
+    var islandEffectOpacity: Double { didSet { defaults.set(islandEffectOpacity, forKey: Key.islandEffectOpacity) } }
+    /// "#RRGGBB".
+    var islandEffectFireflyColor: String {
+        didSet { defaults.set(islandEffectFireflyColor, forKey: Key.islandEffectFireflyColor) }
+    }
+    var islandEffectPausesOnBattery: Bool {
+        didSet { defaults.set(islandEffectPausesOnBattery, forKey: Key.islandEffectPausesOnBattery) }
+    }
 
     func isIslandModuleOn(_ module: IslandModule) -> Bool {
         islandEnabled && islandModules.contains { $0.module == module && $0.isOn }
@@ -260,6 +293,15 @@ final class Preferences {
         islandWeatherPlace = defaults.data(forKey: Key.islandWeatherPlace)
             .flatMap { try? JSONDecoder().decode(WeatherPlace.self, from: $0) }
         islandWatchesNewFiles = Self.boolValue(defaults, Key.islandWatchesNewFiles, default: true)
+        islandEffect = Self.enumValue(defaults, Key.islandEffect, default: .off)
+        islandEffectPlacement = Self.enumValue(defaults, Key.islandEffectPlacement, default: .island)
+        islandEffectAmount = defaults.object(forKey: Key.islandEffectAmount) as? Double ?? 0.5
+        islandEffectPausesOnBattery = Self.boolValue(defaults, Key.islandEffectPausesOnBattery, default: true)
+        islandEffectAngle = defaults.object(forKey: Key.islandEffectAngle) as? Double ?? 0
+        islandEffectSpeed = defaults.object(forKey: Key.islandEffectSpeed) as? Double ?? 0.5
+        islandEffectSize = defaults.object(forKey: Key.islandEffectSize) as? Double ?? 0.5
+        islandEffectOpacity = defaults.object(forKey: Key.islandEffectOpacity) as? Double ?? 0.5
+        islandEffectFireflyColor = defaults.string(forKey: Key.islandEffectFireflyColor) ?? EffectStyle.defaultFireflyColor
     }
 
     // MARK: Remembered sizes
@@ -351,6 +393,15 @@ final class Preferences {
         islandCities = fresh.islandCities
         islandWeatherPlace = fresh.islandWeatherPlace
         islandWatchesNewFiles = fresh.islandWatchesNewFiles
+        islandEffect = fresh.islandEffect
+        islandEffectPlacement = fresh.islandEffectPlacement
+        islandEffectAmount = fresh.islandEffectAmount
+        islandEffectPausesOnBattery = fresh.islandEffectPausesOnBattery
+        islandEffectAngle = fresh.islandEffectAngle
+        islandEffectSpeed = fresh.islandEffectSpeed
+        islandEffectSize = fresh.islandEffectSize
+        islandEffectOpacity = fresh.islandEffectOpacity
+        islandEffectFireflyColor = fresh.islandEffectFireflyColor
     }
 
     private static func boolValue(_ defaults: UserDefaults, _ key: String, default value: Bool) -> Bool {

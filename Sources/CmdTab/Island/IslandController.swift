@@ -145,6 +145,8 @@ final class IslandWindow {
     private var screen: NSScreen
     private var hosting: IslandHostingView!
     private var hoverWork: DispatchWorkItem?
+    /// Rain over the whole screen, while the effect is set to fall there too.
+    private var screenEffect: ScreenEffectPanel?
     /// Design review only: stays open whatever the pointer does.
     private var pinnedOpen = false
     #if DEBUG
@@ -195,6 +197,20 @@ final class IslandWindow {
         placePanel()
         render(animated: false)
         observeChanges(of: { [weak self] in self?.resolve() }) { [weak self] _ in self?.render(animated: true) }
+        updateScreenEffect()
+        observeChanges(of: { [weak self] in
+            self.map { ($0.services.effects.kind, $0.services.effects.onScreen, $0.services.effects.style) }
+        }) { [weak self] _ in self?.updateScreenEffect() }
+    }
+
+    private func updateScreenEffect() {
+        let effects = services.effects
+        guard !closed, effects.onScreen, let kind = effects.kind else {
+            screenEffect?.hide()
+            return
+        }
+        if screenEffect == nil { screenEffect = ScreenEffectPanel() }
+        screenEffect?.show(kind, style: effects.style, on: screen)
     }
 
     func move(to screen: NSScreen) {
@@ -202,6 +218,7 @@ final class IslandWindow {
         model.notch = IslandController.islandNotch(of: screen).size
         placePanel()
         render(animated: false)
+        updateScreenEffect()
     }
 
     func pinOpen(tab: IslandModule) {
@@ -212,6 +229,7 @@ final class IslandWindow {
 
     func close() {
         closed = true
+        screenEffect?.hide()
         panel.orderOut(nil)
         hitPanel.orderOut(nil)
     }
@@ -228,6 +246,7 @@ final class IslandWindow {
         inputs.showsLimit = preferences.islandShowsLimit
         inputs.agentsOn = preferences.isIslandModuleOn(.agents)
         inputs.musicPlaying = preferences.isIslandModuleOn(.music) && services.music.track?.isPlaying == true
+        inputs.effect = services.effects.islandKind
         if services.windowDrop.isActive { inputs.windowDrop = .some(services.windowDrop.selection) }
         if preferences.isIslandModuleOn(.windows) { inputs.columnDrop = services.notchDrop?.state }
         if preferences.isIslandModuleOn(.shelf) { inputs.arrival = services.shelf.arrival }

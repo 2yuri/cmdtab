@@ -85,7 +85,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         observeChanges(of: { [preferences] in
             (preferences.islandEnabled, preferences.islandModules, preferences.islandApprovals,
              preferences.islandNotifies, preferences.islandScreen,
-             (preferences.islandWatchesNewFiles, preferences.scrollLockEnabled))
+             (preferences.islandWatchesNewFiles, preferences.scrollLockEnabled, preferences.islandEffect,
+              preferences.islandEffectPausesOnBattery))
         }) { [weak self] _ in
             self?.island.update()
         }

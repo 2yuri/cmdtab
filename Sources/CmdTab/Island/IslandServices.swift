@@ -18,9 +18,12 @@ final class IslandServices {
     /// Tiling's: a tiled window dragged up to the island.
     var notchDrop: NotchDrop?
     let windows: IslandWindowSource
+    /// Rain, snow or fireflies.
+    let effects: IslandEffects
 
     init(preferences: Preferences) {
         windows = IslandWindowSource(preferences: preferences)
+        effects = IslandEffects(preferences: preferences, weather: weather)
     }
 
     func update(_ preferences: Preferences) {
@@ -40,7 +43,9 @@ final class IslandServices {
         if on(.moments) { moments.start() } else { moments.stop() }
         if !on(.focus) { focus.reset() }
         if !on(.calendar) { calendar.stop() }
-        if !on(.weather) { weather.clear() }
+        // The Weather effect keeps asking for the sky even with the tab off.
+        if !on(.weather) && !(on(.effects) && preferences.islandEffect == .weather) { weather.clear() }
+        effects.update()
         // Dragging a window to the island arranges it like Tiling would: on with Windows, off while
         // Tiling places the windows itself.
         windowDrop.screenPadding = { preferences.screenPadding }

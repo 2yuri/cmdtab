@@ -6,6 +6,14 @@ All notable changes to cmdtab are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-04
+
+### Added
+- Effects, a new island module: rain, snow or fireflies in the island's wings, on the screen, or both.
+  Its tab has a live preview and sets the amount, size, speed, opacity, direction (rain and snow) and
+  the fireflies' colour. Weather follows the sky in your weather city. Pauses on battery (optional)
+  and always in Low Power Mode. Clicks pass straight through.
+
 ## [1.3.2] - 2026-11-04
 
 ### Fixed
@@ -79,7 +87,8 @@ All notable changes to cmdtab are documented here. The format follows
 - Settings window, menu bar menu and first-launch permission guide.
 - Light and dark themes, Reduce Transparency and VoiceOver labels.
 
-[Unreleased]: https://github.com/2yuri/cmdtab/compare/v1.3.2...HEAD
+[Unreleased]: https://github.com/2yuri/cmdtab/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/2yuri/cmdtab/releases/tag/v1.4.0
 [1.3.2]: https://github.com/2yuri/cmdtab/releases/tag/v1.3.2
 [1.3.1]: https://github.com/2yuri/cmdtab/releases/tag/v1.3.1
 [1.3.0]: https://github.com/2yuri/cmdtab/releases/tag/v1.3.0
