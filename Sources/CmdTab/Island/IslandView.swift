@@ -68,15 +68,22 @@ struct IslandView: View {
                 .onHover(perform: onHover)
                 .onTapGesture(perform: onTap)
 
-            // Rain, snow or fireflies in the wings of the closed island, behind whatever it shows.
-            if let kind = services.effects.islandKind, !content.isGrown, content != .idle {
-                HStack(spacing: 0) {
-                    IslandEffectView(kind: kind, style: services.effects.style)
-                    Color.clear.frame(width: model.notch.width)
-                    IslandEffectView(kind: kind, style: services.effects.style)
+            // Rain, snow or fireflies behind whatever the island shows: in the wings while closed,
+            // across the whole shape while it's open, fainter behind content.
+            if let kind = services.effects.islandKind, content != .idle {
+                Group {
+                    if content.isGrown {
+                        IslandEffectView(kind: kind, style: services.effects.style, scale: .screen)
+                    } else {
+                        HStack(spacing: 0) {
+                            IslandEffectView(kind: kind, style: services.effects.style)
+                            Color.clear.frame(width: model.notch.width)
+                            IslandEffectView(kind: kind, style: services.effects.style)
+                        }
+                    }
                 }
                 .frame(width: size.width, height: size.height)
-                .opacity(content == .effect(kind) ? 1 : 0.5)
+                .opacity(content == .effect(kind) ? 1 : content.isGrown ? 0.7 : 0.5)
                 .mask(shape)
                 .allowsHitTesting(false)
             }

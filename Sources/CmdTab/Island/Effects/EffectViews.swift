@@ -11,6 +11,9 @@ final class EffectEmitterView: NSView {
     let scale: Scale
     private let emitter = CAEmitterLayer()
     private let splash = CAEmitterLayer()
+    /// What the particles were made for; a new size alone only retimes them, so they keep falling
+    /// while the island grows.
+    private var builtFor: (kind: EffectKind, style: EffectStyle, flipped: Bool)?
 
     var kind: EffectKind? { didSet { if kind != oldValue { configure() } } }
     var style = EffectStyle() { didSet { if style != oldValue { configure() } } }
@@ -50,6 +53,7 @@ final class EffectEmitterView: NSView {
         guard let kind, bounds.width > 0, bounds.height > 0 else {
             emitter.birthRate = 0
             splash.birthRate = 0
+            builtFor = nil
             return
         }
         // Inside SwiftUI the layers may be flipped; "down" is whichever way the screen's down is.
@@ -61,15 +65,24 @@ final class EffectEmitterView: NSView {
         emitter.emitterMode = recipe.mode
         emitter.emitterPosition = recipe.position
         emitter.emitterSize = recipe.size
-        // A cell already handed to the layer ignores changes: give it a new one each time.
-        emitter.emitterCells = [recipe.cell]
         emitter.birthRate = 1
-
-        if let splashCell = recipe.splash {
+        let cell = recipe.cell
+        let splashCell = recipe.splash
+        if let built = builtFor, built.kind == kind, built.style == style, built.flipped == flipped {
+            // Same particles, new size: retime the ones on the layer by name.
+            emitter.setValue(cell.lifetime, forKeyPath: "emitterCells.particle.lifetime")
+            emitter.setValue(cell.birthRate, forKeyPath: "emitterCells.particle.birthRate")
+            if let splashCell { splash.setValue(splashCell.birthRate, forKeyPath: "emitterCells.splash.birthRate") }
+        } else {
+            // A cell already handed to the layer ignores changes: give it a new one.
+            emitter.emitterCells = [cell]
+            splash.emitterCells = splashCell.map { [$0] }
+            builtFor = (kind, style, flipped)
+        }
+        if splashCell != nil {
             splash.emitterShape = .line
             splash.emitterPosition = CGPoint(x: bounds.midX, y: geometry.floorY)
             splash.emitterSize = CGSize(width: bounds.width, height: 0)
-            splash.emitterCells = [splashCell]
             splash.birthRate = 1
         } else {
             splash.birthRate = 0
@@ -258,6 +271,7 @@ struct EffectRecipe {
     var splash: CAEmitterCell? {
         guard kind == .rain else { return nil }
         let cell = CAEmitterCell()
+        cell.name = "splash"
         cell.contents = EffectImages.dot
         cell.contentsScale = 2
         cell.color = Self.strengthened(CGColor(red: 0.78, green: 0.86, blue: 1, alpha: 0.6), by: style.strength)
@@ -338,9 +352,11 @@ enum EffectImages {
 struct IslandEffectView: NSViewRepresentable {
     let kind: EffectKind?
     let style: EffectStyle
+    /// The open island is big enough for the screen's particles.
+    var scale: EffectEmitterView.Scale = .island
 
     func makeNSView(context: Context) -> EffectEmitterView {
-        EffectEmitterView(scale: .island)
+        EffectEmitterView(scale: scale)
     }
 
     func updateNSView(_ view: EffectEmitterView, context: Context) {

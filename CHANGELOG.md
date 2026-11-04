@@ -6,6 +6,15 @@ All notable changes to cmdtab are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-11-04
+
+### Changed
+- Effects also fall in the open island, behind its tabs, not only in the wings while it's closed.
+
+### Fixed
+- Changing an effect's settings no longer restarts it: the drops keep falling while the island
+  grows or shrinks.
+
 ## [1.4.0] - 2026-11-04
 
 ### Added
@@ -87,7 +96,8 @@ All notable changes to cmdtab are documented here. The format follows
 - Settings window, menu bar menu and first-launch permission guide.
 - Light and dark themes, Reduce Transparency and VoiceOver labels.
 
-[Unreleased]: https://github.com/2yuri/cmdtab/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/2yuri/cmdtab/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/2yuri/cmdtab/releases/tag/v1.4.1
 [1.4.0]: https://github.com/2yuri/cmdtab/releases/tag/v1.4.0
 [1.3.2]: https://github.com/2yuri/cmdtab/releases/tag/v1.3.2
 [1.3.1]: https://github.com/2yuri/cmdtab/releases/tag/v1.3.1
