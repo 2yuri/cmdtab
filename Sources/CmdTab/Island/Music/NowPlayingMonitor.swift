@@ -29,7 +29,10 @@ struct NowPlaying: Equatable {
     static func parse(_ object: [String: Any]) -> NowPlaying? {
         let title = (object["title"] as? String) ?? ""
         let playing = object["playing"] as? Bool ?? false
-        guard !title.isEmpty || playing else { return nil }
+        // Without a title, playback counts only with a length or a position: a web app's notification
+        // sound leaves macOS reporting "playing" with nothing else, long after the sound ended.
+        let hasProgress = object["duration"] is Double || object["elapsed"] is Double
+        guard !title.isEmpty || (playing && hasProgress) else { return nil }
         return NowPlaying(
             title: title,
             artist: (object["artist"] as? String).flatMap { $0.isEmpty ? nil : $0 },

@@ -126,8 +126,8 @@ enum IslandLayout {
         CGFloat(count) * 64 + CGFloat(max(count - 1, 0)) * NotchDrop.spacing
     }
 
-    /// Screens without a notch get a pill this size as the "notch".
-    static let virtualNotch = CGSize(width: 0, height: 32)
+    /// The notch drawn on screens without one: about the size of a MacBook's.
+    static let fakeNotch = CGSize(width: 190, height: 24)
 }
 
 /// The closed island while agents are busy. Yours on the left (a question waiting, or the song and

@@ -88,6 +88,16 @@ final class IslandController {
         visible.minY > frame.minY || visible.minX > frame.minX || visible.maxX < frame.maxX
     }
 
+    /// The notch, or on screens without one a notch of our own: the same size, at the top centre,
+    /// over the menu bar. The island always grows from there.
+    static func islandNotch(of screen: NSScreen) -> CGRect {
+        if let notch = notchRect(of: screen) { return notch }
+        let frame = screen.frame
+        let height = max(frame.maxY - screen.visibleFrame.maxY, IslandLayout.fakeNotch.height)
+        let width = IslandLayout.fakeNotch.width
+        return CGRect(x: frame.midX - width / 2, y: frame.maxY - height, width: width, height: height)
+    }
+
     static func notchRect(of screen: NSScreen) -> CGRect? {
         guard screen.safeAreaInsets.top > 0,
               let left = screen.auxiliaryTopLeftArea,
@@ -151,8 +161,6 @@ final class IslandWindow {
     /// How long the pointer rests before the island opens, and lingers outside before it closes.
     private static let openDelay: TimeInterval = 0.12
     private static let closeDelay: TimeInterval = 0.35
-    /// Gap under the menu bar for the pill on screens without a notch.
-    private static let pillInset: CGFloat = 6
     /// Room around the biggest shape for its shadow.
     static let shadowMargin: CGFloat = 40
 
@@ -160,8 +168,7 @@ final class IslandWindow {
         self.screen = screen
         self.preferences = preferences
         self.services = services
-        let notch = IslandController.notchRect(of: screen)
-        model = IslandModel(notch: notch?.size ?? IslandLayout.virtualNotch, hasNotch: notch != nil)
+        model = IslandModel(notch: IslandController.islandNotch(of: screen).size, hasNotch: true)
         hosting = IslandHostingView(rootView: IslandView(
             model: model,
             services: services,
@@ -192,8 +199,7 @@ final class IslandWindow {
 
     func move(to screen: NSScreen) {
         self.screen = screen
-        let notch = IslandController.notchRect(of: screen)
-        model.notch = notch?.size ?? IslandLayout.virtualNotch
+        model.notch = IslandController.islandNotch(of: screen).size
         placePanel()
         render(animated: false)
     }
@@ -248,7 +254,6 @@ final class IslandWindow {
                 model.content = new
             }
         }
-        let hiddenWhenIdle = new == .idle && !model.hasNotch
         // Open: the shape panel takes the mouse. Closed: the hit panel does, over the shape only.
         if !new.isGrown, panel.isKeyWindow {
             // Typing goes back to the app you were in.
@@ -266,9 +271,7 @@ final class IslandWindow {
         // never leaves the island mid-way.
         let standInTakesMouse = !new.isGrown || new == .drop
         panel.ignoresMouseEvents = standInTakesMouse
-        if hiddenWhenIdle {
-            hitPanel.orderOut(nil)
-        } else if standInTakesMouse {
+        if standInTakesMouse {
             hitPanel.setFrame(shapeRect(for: new), display: false)
             hitPanel.orderFrontRegardless()
         } else {
@@ -286,11 +289,11 @@ final class IslandWindow {
     }
 
     private var centerX: CGFloat {
-        IslandController.notchRect(of: screen)?.midX ?? screen.frame.midX
+        IslandController.islandNotch(of: screen).midX
     }
 
     private var top: CGFloat {
-        model.hasNotch ? screen.frame.maxY : screen.visibleFrame.maxY - Self.pillInset
+        screen.frame.maxY
     }
 
     private func shapeRect(for content: IslandContent) -> CGRect {

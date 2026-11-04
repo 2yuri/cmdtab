@@ -249,7 +249,10 @@ final class NowPlayingTests: XCTestCase {
         paused.isPlaying = false
         XCTAssertEqual(paused.position(at: Date(timeIntervalSince1970: 1010)), 100)
         XCTAssertNil(NowPlaying.parse(["title": NSNull(), "playing": false]))
-        let bare = try XCTUnwrap(NowPlaying.parse(["title": NSNull(), "playing": true, "pid": 7]), "Playing without details still counts")
+        XCTAssertNil(NowPlaying.parse(["title": NSNull(), "playing": true, "duration": NSNull(), "elapsed": NSNull(), "pid": 7]),
+                     "A notification sound's leftover: playing, but nothing to play")
+        let bare = try XCTUnwrap(NowPlaying.parse(["title": NSNull(), "playing": true, "duration": 240.0, "elapsed": 12.0, "pid": 7]),
+                                 "A web player without track details still counts")
         XCTAssertFalse(bare.hasDetails)
     }
 

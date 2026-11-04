@@ -6,6 +6,13 @@ All notable changes to cmdtab are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-11-04
+
+### Fixed
+- The island no longer gets stuck on "Playing" after a web app's notification that never played anything.
+- On Macs without a notch the island no longer flickers: it sits at the very top of the screen, over a
+  notch-sized space, instead of under the menu bar.
+
 ## [1.3.1] - 2026-11-03
 
 ### Changed
@@ -72,7 +79,8 @@ All notable changes to cmdtab are documented here. The format follows
 - Settings window, menu bar menu and first-launch permission guide.
 - Light and dark themes, Reduce Transparency and VoiceOver labels.
 
-[Unreleased]: https://github.com/2yuri/cmdtab/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/2yuri/cmdtab/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/2yuri/cmdtab/releases/tag/v1.3.2
 [1.3.1]: https://github.com/2yuri/cmdtab/releases/tag/v1.3.1
 [1.3.0]: https://github.com/2yuri/cmdtab/releases/tag/v1.3.0
 [1.2.1]: https://github.com/2yuri/cmdtab/releases/tag/v1.2.1
