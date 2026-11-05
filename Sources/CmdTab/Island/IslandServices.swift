@@ -14,6 +14,7 @@ final class IslandServices {
     let moments = MomentsMonitor()
     /// CPU, memory and battery for the Overview, sampled only while it's open.
     let stats = SystemStats()
+    let appUsage = AppUsage()
     let windowDrop = WindowDropWatcher()
     /// Tiling's: a tiled window dragged up to the island.
     var notchDrop: NotchDrop?
@@ -37,7 +38,7 @@ final class IslandServices {
         }
         agents.setApprovals(on(.agents) && preferences.islandApprovals)
         if on(.music) || on(.overview) { music.start() } else { music.stop() }
-        if !on(.overview) { stats.stop() }
+        if !on(.overview) { stats.stop(); appUsage.stop() }
         shelf.setWatchesNewFiles(on(.shelf) && preferences.islandWatchesNewFiles)
         if on(.meetings) { meetings.start() } else { meetings.stop() }
         if on(.moments) { moments.start() } else { moments.stop() }

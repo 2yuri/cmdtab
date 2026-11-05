@@ -5,17 +5,26 @@ import SwiftUI
 struct OverviewTab: View {
     let services: IslandServices
     let preferences: Preferences
+    /// Holds which stat's popover is open; the island draws it, floating over everything.
+    let model: IslandModel
 
     var body: some View {
+        let detail = model.statDetail
         HStack(alignment: .top, spacing: 18) {
             OverviewSection(title: "NOW PLAYING") { NowPlayingSummary(music: services.music) }
                 .frame(width: 230)
+                .opacity(detail == nil ? 1 : 0.3)
             Divider().overlay(Color.white.opacity(0.08))
-            OverviewSection(title: "THIS MAC") { MacSummary(stats: services.stats) }
-                .frame(width: 200)
+            OverviewSection(title: "THIS MAC") {
+                MacSummary(stats: services.stats, detail: detail) { card, inside in
+                    model.hoverStat(card: inside ? card : nil, usage: services.appUsage)
+                }
+            }
+            .frame(width: 200)
             Divider().overlay(Color.white.opacity(0.08))
             OverviewSection(title: "AGENTS") { AgentsSummary(monitor: services.agents) }
                 .frame(width: 210)
+                .opacity(detail == nil ? 1 : 0.3)
             Divider().overlay(Color.white.opacity(0.08))
             OverviewSection(title: "UP NEXT") {
                 UpNextSummary(
@@ -25,10 +34,37 @@ struct OverviewTab: View {
                 )
             }
             .frame(maxWidth: .infinity)
+            .opacity(detail == nil ? 1 : 0.3)
         }
         .fixedSize(horizontal: false, vertical: true)
+        .onPreferenceChange(StatCardFrames.self) { model.statCards = $0 }
         .onAppear { services.stats.start() }
-        .onDisappear { services.stats.stop() }
+        .onDisappear {
+            services.stats.stop()
+            model.closeStat(usage: services.appUsage)
+        }
+    }
+}
+
+/// The open stat's popover, hanging from its card over the island and past its edge.
+struct StatPopoverLayer: View {
+    let model: IslandModel
+    let services: IslandServices
+
+    var body: some View {
+        if let detail = model.statDetail, let card = model.statCards[detail] {
+            let total = (detail == .cpu ? services.stats.cpu : services.stats.memory).last
+            UsagePopover(resource: detail, usage: services.appUsage, total: total) {
+                model.closeStat(usage: services.appUsage)
+            }
+            .onHover { model.hoverStat(card: nil, popover: $0, usage: services.appUsage) }
+            .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .named(IslandModel.space)) }) { model.popoverRect = $0 }
+            .onDisappear { model.popoverRect = nil }
+            .padding(.leading, max(card.midX - UsagePopover.arrowX, 0))
+            .padding(.top, card.maxY + 10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
+        }
     }
 }
 
@@ -101,13 +137,16 @@ private struct SmallControl: View {
 
 private struct MacSummary: View {
     let stats: SystemStats
+    let detail: AppUsage.Resource?
+    let hover: (AppUsage.Resource, Bool) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                StatCard(symbol: "cpu", samples: stats.cpu, tint: IslandStyle.volt)
-                StatCard(symbol: "memorychip", samples: stats.memory, tint: IslandStyle.primary)
+                StatCard(resource: .cpu, samples: stats.cpu, isOpen: detail == .cpu) { hover(.cpu, $0) }
+                StatCard(resource: .memory, samples: stats.memory, isOpen: detail == .memory) { hover(.memory, $0) }
             }
+            .zIndex(1)
             if let battery = stats.battery {
                 HStack(spacing: 8) {
                     Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.75")
@@ -124,21 +163,39 @@ private struct MacSummary: View {
                             .fixedSize()
                     }
                 }
+                .opacity(detail == nil ? 1 : 0.3)
             }
         }
     }
 }
 
+extension AppUsage.Resource {
+    var symbol: String { self == .cpu ? "cpu" : "memorychip" }
+    var title: String { self == .cpu ? "CPU" : "Memory" }
+    var tint: Color { self == .cpu ? IslandStyle.volt : IslandStyle.primary }
+}
+
+/// Where each stat card sits in the Overview, for its popover's arrow.
+private struct StatCardFrames: PreferenceKey {
+    static let defaultValue: [AppUsage.Resource: CGRect] = [:]
+    static func reduce(value: inout [AppUsage.Resource: CGRect], nextValue: () -> [AppUsage.Resource: CGRect]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
 private struct StatCard: View {
-    let symbol: String
+    let resource: AppUsage.Resource
     let samples: [Double]
-    let tint: Color
+    let isOpen: Bool
+    let hover: (Bool) -> Void
+    @State private var hovering = false
 
     var body: some View {
+        let tint = resource.tint
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: symbol).font(.system(size: 12)).foregroundStyle(IslandStyle.secondary)
-                Spacer()
+            HStack(spacing: 4) {
+                Image(systemName: resource.symbol).font(.system(size: 12)).foregroundStyle(IslandStyle.secondary)
+                Spacer(minLength: 0)
                 Text(samples.last.map { "\(Int(($0 * 100).rounded()))%" } ?? "–")
                     .font(.system(size: 14, weight: .bold, design: .monospaced))
                     .foregroundStyle(tint)
@@ -149,7 +206,156 @@ private struct StatCard: View {
         .padding(.horizontal, 10)
         .padding(.top, 10)
         .padding(.bottom, 8)
-        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color.white.opacity(isOpen ? 0.08 : hovering ? 0.11 : 0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(isOpen ? tint.opacity(0.6) : Color.white.opacity(hovering ? 0.18 : 0), lineWidth: 1)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .onHover {
+            hovering = $0
+            hover($0)
+        }
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(key: StatCardFrames.self, value: [resource: proxy.frame(in: .named(IslandModel.space))])
+            }
+        }
+    }
+}
+
+/// The apps using the most of a stat, hanging from its card.
+struct UsagePopover: View {
+    let resource: AppUsage.Resource
+    let usage: AppUsage
+    let total: Double?
+    let close: () -> Void
+
+    /// The arrow's centre, from the popover's leading edge.
+    static let arrowX: CGFloat = 70
+    static let fill = Color(red: 0.102, green: 0.106, blue: 0.122)
+
+    var body: some View {
+        let entries = usage.entries(for: resource)
+        let top = entries.first?.value ?? 0
+        VStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: resource.symbol).font(.system(size: 12)).foregroundStyle(IslandStyle.secondary)
+                Text(resource.title).font(.system(size: 13, weight: .bold)).foregroundStyle(IslandStyle.primary)
+                Spacer(minLength: 0)
+                Text(total.map { "\(Int(($0 * 100).rounded()))%" } ?? "–")
+                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    .foregroundStyle(resource.tint)
+            }
+            .padding(.horizontal, 6)
+            VStack(spacing: 2) {
+                ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                    ProcessRow(entry: entry, resource: resource, fraction: top > 0 ? entry.value / top : 0, isTop: index == 0) {
+                        usage.quit(entry)
+                    }
+                }
+                // Keeps its height while the first reading comes in.
+                ForEach(entries.count..<AppUsage.shown, id: \.self) { _ in
+                    Color.clear.frame(height: 28)
+                }
+            }
+            Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
+            Button {
+                NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
+                close()
+            } label: {
+                HStack(spacing: 6) {
+                    Text("Activity Monitor").font(.system(size: 12, weight: .medium))
+                    Spacer(minLength: 0)
+                    Image(systemName: "arrow.up.right").font(.system(size: 11, weight: .semibold))
+                }
+                .foregroundStyle(IslandStyle.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.top, 12)
+        .padding([.horizontal, .bottom], 10)
+        .frame(width: 320)
+        .background(alignment: .topLeading) {
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Self.fill)
+                Rectangle()
+                    .fill(Self.fill)
+                    .frame(width: 12, height: 12)
+                    .rotationEffect(.degrees(45))
+                    .offset(x: Self.arrowX - 6, y: -6)
+            }
+            .shadow(color: .black.opacity(0.7), radius: 16, y: 12)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+        }
+    }
+}
+
+private struct ProcessRow: View {
+    let entry: AppUsage.Entry
+    let resource: AppUsage.Resource
+    let fraction: Double
+    let isTop: Bool
+    let quit: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Group {
+                if let icon = entry.icon {
+                    Image(nsImage: icon).resizable()
+                } else {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.white.opacity(0.1))
+                }
+            }
+            .frame(width: 18, height: 18)
+            Text(entry.name)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(IslandStyle.primary)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.08))
+                    Capsule().fill(resource.tint).frame(width: proxy.size.width * min(max(fraction, 0), 1))
+                }
+            }
+            .frame(width: 70, height: 3)
+            Text(Self.format(entry.value, resource))
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundStyle(isTop ? resource.tint : IslandStyle.secondary)
+                .frame(width: 52, alignment: .trailing)
+            Button(action: quit) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(IslandStyle.primary)
+                    .frame(width: 18, height: 18)
+                    .background(Color.white.opacity(0.1), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .opacity(hovering ? 1 : 0)
+            .help("Quit \(entry.name)")
+        }
+        .padding(.horizontal, 6)
+        .frame(height: 28)
+        .background(Color.white.opacity(hovering ? 0.06 : 0), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .onHover { hovering = $0 }
+    }
+
+    static func format(_ value: Double, _ resource: AppUsage.Resource) -> String {
+        switch resource {
+        case .cpu:
+            let percent = value * 100
+            return percent < 1 ? "<1%" : "\(Int(percent.rounded()))%"
+        case .memory:
+            let gigabytes = value / 1_073_741_824
+            return gigabytes >= 1 ? String(format: "%.1f GB", gigabytes) : "\(Int((value / 1_048_576).rounded())) MB"
+        }
     }
 }
 

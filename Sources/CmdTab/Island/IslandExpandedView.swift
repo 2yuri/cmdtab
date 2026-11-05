@@ -15,7 +15,7 @@ struct ExpandedView: View {
             TabBar(tabs: preferences.islandTabs, selection: tab) { model.tab = $0 }
             Group {
                 switch tab {
-                case .overview: OverviewTab(services: services, preferences: preferences)
+                case .overview: OverviewTab(services: services, preferences: preferences, model: model)
                 case .agents: AgentsTab(monitor: services.agents)
                 case .music: MusicTab(music: services.music)
                 case .shelf: ShelfTab(shelf: services.shelf, isTargeted: model.isDropTargeted)

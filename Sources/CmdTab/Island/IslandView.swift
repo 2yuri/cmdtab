@@ -26,6 +26,39 @@ final class IslandModel {
     private(set) var tabHeights: [IslandModule: CGFloat] = [:]
     var notch: CGSize
     let hasNotch: Bool
+    /// The Overview stat whose apps float in a popover, where its cards sit, and where the popover
+    /// is, all in the island's own space (top left of the panel).
+    var statDetail: AppUsage.Resource?
+    var statCards: [AppUsage.Resource: CGRect] = [:]
+    var popoverRect: CGRect?
+    static let space = "island"
+    @ObservationIgnored private var statWork: DispatchWorkItem?
+    @ObservationIgnored private var overCard: AppUsage.Resource?
+    @ObservationIgnored private var overPopover = false
+
+    /// The pointer resting on a stat card opens its popover; leaving both card and popover closes
+    /// it, after a moment, so the gap between them can be crossed.
+    func hoverStat(card: AppUsage.Resource?, popover: Bool? = nil, usage: AppUsage) {
+        if let popover { overPopover = popover } else { overCard = card }
+        statWork?.cancel()
+        let wanted = overCard ?? (overPopover ? statDetail : nil)
+        guard wanted != statDetail else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            withAnimation(.spring(duration: 0.25, bounce: 0)) { self.statDetail = wanted }
+            if wanted == nil { usage.stop() } else { usage.start() }
+        }
+        statWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + (wanted == nil ? 0.25 : 0.18), execute: work)
+    }
+
+    func closeStat(usage: AppUsage) {
+        statWork?.cancel()
+        overCard = nil
+        overPopover = false
+        statDetail = nil
+        usage.stop()
+    }
 
     init(notch: CGSize, hasNotch: Bool) {
         self.notch = notch
@@ -110,8 +143,13 @@ struct IslandView: View {
             .mask(alignment: .top) {
                 shape.frame(width: size.width, height: size.height)
             }
+
+            if content.isExpandedState {
+                StatPopoverLayer(model: model, services: services)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .coordinateSpace(.named(IslandModel.space))
         .environment(\.colorScheme, .dark)
     }
 

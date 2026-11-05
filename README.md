@@ -134,7 +134,7 @@ that is off reads nothing and runs nothing. The island stays the notch's size un
 happens, opens when the pointer rests on it (or on a click), and on a Mac without a notch it is a
 small pill under the menu bar.
 
-- **Overview.** The first tab sums up the rest: what's playing, CPU and memory with a live line and
+- **Overview.** The first tab sums up the rest: what's playing, CPU and memory with a live line (rest on one to see which apps use the most) and
   the battery (read only while it's open), what your agents have left, and what's next: the next event
   with Join and a Pomodoro one click away.
 - **Agents.** Claude Code and Codex sessions: which ones are working, which one needs you, and what

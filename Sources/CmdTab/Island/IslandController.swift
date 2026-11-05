@@ -403,7 +403,16 @@ final class IslandWindow {
     private var pointerIsOverIsland: Bool {
         var rect = shapeRect(for: model.content).insetBy(dx: -2, dy: -2)
         rect.size.height += 4
-        return rect.contains(NSEvent.mouseLocation)
+        let pointer = NSEvent.mouseLocation
+        if rect.contains(pointer) { return true }
+        // The Overview's popover hangs past the island's edge.
+        if model.content.isExpandedState, let popover = model.popoverRect {
+            let frame = panel.frame
+            let onScreen = CGRect(x: frame.minX + popover.minX, y: frame.maxY - popover.maxY,
+                                  width: popover.width, height: popover.height)
+            return onScreen.insetBy(dx: -4, dy: -4).contains(pointer)
+        }
+        return false
     }
 
     private func tap() {

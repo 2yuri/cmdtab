@@ -6,6 +6,17 @@ All notable changes to cmdtab are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-05
+
+### Added
+- Overview: rest the pointer on the CPU or Memory card and a popover shows the apps using the most,
+  helpers counted with their app, with a quick quit and a shortcut to Activity Monitor. Read only
+  while it's open.
+
+### Fixed
+- While the island showed a banner (an agent finished, an approval, a meeting), the mouse didn't work
+  anywhere under the island's area until it went away. Now only the island itself takes clicks.
+
 ## [1.4.1] - 2026-11-04
 
 ### Changed
@@ -96,7 +107,8 @@ All notable changes to cmdtab are documented here. The format follows
 - Settings window, menu bar menu and first-launch permission guide.
 - Light and dark themes, Reduce Transparency and VoiceOver labels.
 
-[Unreleased]: https://github.com/2yuri/cmdtab/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/2yuri/cmdtab/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/2yuri/cmdtab/releases/tag/v1.5.0
 [1.4.1]: https://github.com/2yuri/cmdtab/releases/tag/v1.4.1
 [1.4.0]: https://github.com/2yuri/cmdtab/releases/tag/v1.4.0
 [1.3.2]: https://github.com/2yuri/cmdtab/releases/tag/v1.3.2
