@@ -145,6 +145,8 @@ final class IslandWindow {
     private var screen: NSScreen
     private var hosting: IslandHostingView!
     private var hoverWork: DispatchWorkItem?
+    /// While the island is grown: notice the pointer, to let the panel take the mouse only over the shape.
+    private var pointerMonitors: [Any] = []
     /// Rain over the whole screen, while the effect is set to fall there too.
     private var screenEffect: ScreenEffectPanel?
     /// Design review only: stays open whatever the pointer does.
@@ -229,6 +231,7 @@ final class IslandWindow {
 
     func close() {
         closed = true
+        stopTrackingPointer()
         screenEffect?.hide()
         panel.orderOut(nil)
         hitPanel.orderOut(nil)
@@ -289,7 +292,14 @@ final class IslandWindow {
         // While a file is dragged over it, the stand-in stays and grows with the shape, so the drag
         // never leaves the island mid-way.
         let standInTakesMouse = !new.isGrown || new == .drop
-        panel.ignoresMouseEvents = standInTakesMouse
+        if standInTakesMouse {
+            stopTrackingPointer()
+            panel.ignoresMouseEvents = true
+        } else {
+            // The panel is far bigger than the shape: it takes the mouse only over the shape, so
+            // the rest of the screen under it keeps working (a "finished" banner used to block it).
+            trackPointer()
+        }
         if standInTakesMouse {
             hitPanel.setFrame(shapeRect(for: new), display: false)
             hitPanel.orderFrontRegardless()
@@ -357,6 +367,39 @@ final class IslandWindow {
 
     /// The island's shape as it is now, a little larger at the edges, and up to the top of the screen
     /// (the pointer can sit on the very last row).
+    private func trackPointer() {
+        if pointerMonitors.isEmpty {
+            let events: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
+            let update: (NSEvent) -> Void = { [weak self] _ in
+                MainActor.assumeIsolated { self?.updatePanelMouse() }
+            }
+            if let global = NSEvent.addGlobalMonitorForEvents(matching: events, handler: update) {
+                pointerMonitors.append(global)
+            }
+            if let local = NSEvent.addLocalMonitorForEvents(matching: events, handler: { event in
+                update(event)
+                return event
+            }) {
+                pointerMonitors.append(local)
+            }
+        }
+        updatePanelMouse()
+    }
+
+    private func stopTrackingPointer() {
+        pointerMonitors.forEach(NSEvent.removeMonitor)
+        pointerMonitors.removeAll()
+    }
+
+    private func updatePanelMouse() {
+        guard !closed, model.content.isGrown else { return }
+        let inside = pointerIsOverIsland
+        guard panel.ignoresMouseEvents == inside else { return }
+        panel.ignoresMouseEvents = !inside
+        // The shape's own hover tracking can miss the pointer it just started taking.
+        hover(inside)
+    }
+
     private var pointerIsOverIsland: Bool {
         var rect = shapeRect(for: model.content).insetBy(dx: -2, dy: -2)
         rect.size.height += 4
